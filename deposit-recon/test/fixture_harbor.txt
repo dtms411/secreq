@@ -1,0 +1,17 @@
+                        HARBOR NATIONAL BANK
+                      DEPOSIT TRUST ACCOUNT
+
+  Account No: ******8830
+  Statement Period: 05/01/2025 through 05/31/2025
+
+  Opening Balance: $72,300.00
+
+  Date    Description                                Amount          Balance
+  --------------------------------------------------------------------------
+  05/04   ACH DEPOSIT WESTFIELD C UNIT 12A           3,100.00        75,400.00
+  05/12   REFUND CK 20915 HALEY P                    1,800.00-       73,600.00
+  05/28   INTEREST PAYMENT                              44.10         73,644.10
+
+  Closing Balance: $73,644.10
+
+  Page 1 of 1

@@ -1,9 +1,10 @@
 import type { StatementParser } from './types.js';
 import { escrowParser } from './escrow.js';
+import { harborParser } from './harbor.js';
 
 // One entry per bank format. Tune against a real statement before use.
 
-const PARSERS: StatementParser[] = [escrowParser];
+const PARSERS: StatementParser[] = [escrowParser, harborParser];
 
 export function register(p: StatementParser) {
   PARSERS.push(p);

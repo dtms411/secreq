@@ -1,35 +1,50 @@
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { ingestPdf } from './ingest.js';
+import { ingestCsv } from './ingestCsv.js';
+import type { CsvFormat } from './parsers/csv.js';
 import { tieout } from './reports/tieout.js';
 import { continuityReport } from './reports/continuity.js';
 import {
   backfill, singleAccount, byDirectory, readJournalSummary,
   type IngestFn, type AccountResolver,
 } from './backfill.js';
+import { loadLeases } from './leases/load.js';
+import type { LeaseColumnMap } from './leases/parse.js';
+import { runMatching } from './match/run.js';
+import { runDetectors } from './exceptions/run.js';
+import { runDeadlines } from './deadline/run.js';
 import { listParsers } from './parsers/registry.js';
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 const [cmd, ...args] = process.argv.slice(2);
 
 const usage = `
-  ingest <bank_account_id> <file.pdf...>     parse and load statements
+  ingest <bank_account_id> <file.pdf...>     parse and load PDF statements
+  ingest-csv <bank_account_id> <file.csv> --format <fmt.json> [--seed <cents>]
   backfill <root> --account <id>             resumable batch ingest of a tree
   backfill <root> --map <dirmap.json>          (route each file by parent dir)
   quarantine <root>                          re-print the quarantine report
   continuity [--write]                       per-account gaps in the statement series
+  leases <file.csv> --map <map.json>         load the independent lease universe
+  match                                      propose bank<->ledger matches (human decides)
+  exceptions [--dry]                         run all detectors into the triage queue
+  deadlines [--date YYYY-MM-DD]              daily 14-day refund clock
   tieout                                     phase 1 variance report
   parsers                                    list registered bank formats
 `;
 
-/** Route a file to the right ingest layer by extension. CSV is deliberately
- *  not wired yet: task 2 is blocked on a real bank CSV export, and a stub that
- *  silently did nothing would read as "no statements to load" rather than
- *  "not built yet". */
+/** Route a file to the right ingest layer by extension. PDFs are auto-detected
+ *  and parsed; CSVs need an explicit per-bank format map, so batch CSV goes
+ *  through the dedicated `ingest-csv` command rather than the tree walk. */
 const ingestByExtension: IngestFn = async (path, acct) => {
   const ext = extname(path).toLowerCase();
   if (ext === '.pdf') return ingestPdf(path, acct);
   if (ext === '.csv') {
-    return { status: 'errored', message: 'csv ingest not yet available (task 2 — blocked on a real bank CSV export)' };
+    return { status: 'errored', message: 'csv needs an explicit --format; use `ingest-csv` (not the tree walk)' };
   }
   return { status: 'errored', message: `no ingest path for ${ext} files` };
 };
@@ -105,6 +120,34 @@ switch (cmd) {
     break;
   }
 
+  case 'ingest-csv': {
+    const [acct, file] = args;
+    const fmtFile = flag('--format');
+    if (!acct || !file || !fmtFile) { console.error(usage); process.exit(1); }
+    const fmt = JSON.parse(await readFile(fmtFile, 'utf8')) as CsvFormat;
+    const seed = flag('--seed');
+    const r = await ingestCsv(file, acct, fmt, seed ? { seedOpeningCents: Number(seed) } : {});
+    console.log(`[${r.status}] ${file}\n  ${r.message}`);
+    if (r.status === 'quarantined') process.exit(2);
+    break;
+  }
+
+  case 'leases': {
+    const file = args[0];
+    const mapFile = flag('--map');
+    if (!file || !mapFile) { console.error(usage); process.exit(1); }
+    const map = JSON.parse(await readFile(mapFile, 'utf8')) as LeaseColumnMap;
+    const r = await loadLeases(file, map, flag('--source'));
+    console.log(`leases: ${r.inserted} inserted, ${r.skippedExisting} already present`);
+    if (r.unresolvedBuilding.length) console.log(`  ${r.unresolvedBuilding.length} row(s) had an unresolved building — not loaded`);
+    for (const p of r.problems) console.log(`  line ${p.line}: ${p.reason}`);
+    for (const n of r.notes) console.log(`  note (line ${n.line}): ${n.note}`);
+    break;
+  }
+
+  case 'match': await runMatching(); break;
+  case 'exceptions': await runDetectors(!args.includes('--dry')); break;
+  case 'deadlines': await runDeadlines(flag('--date') ?? today()); break;
   case 'continuity': await continuityReport(args.includes('--write')); break;
   case 'tieout': await tieout(); break;
   case 'parsers': console.table(listParsers()); break;
