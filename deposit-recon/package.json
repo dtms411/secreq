@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "tsx test/run.ts",
+    "test": "tsx test/run.ts && tsx test/backfill.ts",
     "cli": "tsx src/cli.ts"
   },
   "dependencies": {

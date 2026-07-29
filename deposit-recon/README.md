@@ -36,12 +36,40 @@ wrong numbers that look right.
 
     npm install
     cp .env.example .env          # investigation project only
-    npx tsx test/run.ts           # verify parser + gate
+    npm test                      # parser + gate + backfill/continuity
     npm run cli -- ingest <bank_account_id> statements/*.pdf
+    npm run cli -- backfill <root> --account <id>   # or: --map <dirmap.json>
+    npm run cli -- quarantine <root>                # re-list files needing review
+    npm run cli -- continuity [--write]             # per-account gaps in the series
     npm run cli -- tieout
 
 Run the seven-year backfill locally. Vercel hosts the review UI and the
 go-forward monthly ingest, where documents arrive one at a time.
+
+## Backfill
+
+`backfill` walks a folder tree and runs every statement through the same
+gate as `ingest`. It is resumable and idempotent: a `.backfill-journal.jsonl`
+in the root records a terminal status per file, so an interrupted run resumes
+without re-touching anything that already landed, and the `documents.sha256`
+unique constraint makes re-running the whole tree safe regardless. Each file
+must route to a bank account — `--account` for a single-account tree, or
+`--map` (parent-directory name → account id) for a mixed one. A file that
+cannot be routed errors and is surfaced, never guessed at.
+
+The summary distinguishes ingested / duplicate / quarantined / errored, and
+`quarantine <root>` re-prints everything a human still has to look at.
+
+## Period continuity
+
+`continuity` checks each account's statement series for two independent breaks:
+a **calendar gap** (the next period does not begin the day after the previous
+one ended — a statement is missing) and a **balance break** (the next opening
+balance does not equal the previous closing — the running balance was not
+carried forward). A missing month is as important as a variance; nothing else
+detects it. Report-only by default; `--write` records each break as a
+`missing_statement_period` exception. Like the checksum, it never fills a gap
+or adjusts a balance — it only reports.
 
 ## Adding a bank
 
