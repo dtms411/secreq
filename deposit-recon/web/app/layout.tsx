@@ -9,7 +9,7 @@ const sans = IBM_Plex_Sans({ subsets: ['latin'], weight: ['400', '500', '600'], 
 
 // NOTE: sign-in gate temporarily removed — the app renders straight to the
 // dashboard. Re-enable later by wrapping {children} in <AuthGate>.
-export const metadata = { title: 'deposit-recon', description: 'Forensic reconciliation of tenant security deposit escrow' };
+export const metadata = { title: 'SecReq — Security Deposit Reconciliation', description: 'Forensic reconciliation of tenant security deposit escrow' };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,8 +18,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <div className="shell">
           <aside className="sidebar">
             <div className="brand">
-              deposit&#8202;·&#8202;recon
-              <small>escrow forensics</small>
+              SecReq
+              <small>Security Deposit Reconciliation</small>
             </div>
             <Nav />
             <div className="side-foot">
