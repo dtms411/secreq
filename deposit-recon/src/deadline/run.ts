@@ -37,19 +37,22 @@ export async function runDeadlines(todayISO: string): Promise<DeadlineRunResult>
 
   for (const e of due) {
     const msg = stageMessage(e);
-    const recipients = to.length ? to : [];
-    let providerId = 'no-recipient';
-    if (recipients.length) {
-      const r = await sendEmail({ to: recipients, subject: msg.subject, text: msg.body });
-      providerId = r.id;
-    } else {
-      console.log(`  ⚠ ${e.stage} for ${e.deadline.tenantName}: no DEADLINE_ALERT_TO configured — recorded, not sent`);
+    // No recipient configured -> do NOT record the notification. The row is
+    // append-only with a unique (lease_id, stage) constraint, so recording it
+    // now would permanently suppress this escalation once a recipient is finally
+    // set — silently burning the highest-dollar alert in the system. Skip and
+    // let a later, configured run send it.
+    if (!to.length) {
+      console.log(`  ⚠ ${e.stage} for ${e.deadline.tenantName}: no DEADLINE_ALERT_TO configured — NOT recorded, will retry`);
+      continue;
     }
+    const r = await sendEmail({ to, subject: msg.subject, text: msg.body });
+    const recipients = to;
+    const providerId = r.id;
 
-    // Record regardless of send outcome: the unique (lease_id, stage) constraint
-    // is what prevents a second send, so the row must be written even in a
-    // dry-run. A genuine send failure throws above and the row is not written,
-    // so the next run retries.
+    // Record after a successful send. The unique (lease_id, stage) constraint
+    // prevents a second send; a genuine send failure throws above and the row is
+    // not written, so the next run retries.
     const { error: insErr } = await db.from('deadline_notifications').insert({
       lease_id: e.leaseId, stage: e.stage, due_date: e.dueDate,
       recipient: recipients.join(',') || null, provider_id: providerId,

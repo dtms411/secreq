@@ -100,54 +100,31 @@ export async function ingestCsv(
   const closingBalanceCents = openingBalanceCents + sum;
 
   const { size } = await stat(path);
-  const { data: doc, error: docErr } = await db.from('documents').insert({
-    sha256: hash,
-    filename: basename(path),
-    kind: 'bank_csv',
-    bank_account_id: bankAccountId,
-    building_id: acct?.building_id ?? null,
-    storage_path: path,
-    byte_size: size,
-    page_count: null,
-    uploaded_by: actor(),
-  }).select('id').single();
-  if (docErr) throw docErr;
-
-  const { data: s, error: sErr } = await db.from('statements').insert({
-    document_id: doc.id,
-    bank_account_id: bankAccountId,
-    period_start: parsed.periodStart,
-    period_end: parsed.periodEnd,
-    opening_balance_cents: openingBalanceCents,
-    closing_balance_cents: closingBalanceCents,
-    extract_method: 'csv',
-    extract_version: `${fmt.id}@${fmt.version}`,
-    checksum_ok: true,          // closing is derived, so it balances by construction
-    checksum_delta_cents: 0,
-  }).select('id').single();
-  if (sErr) throw sErr;
-
-  await db.from('bank_transactions').insert(
-    parsed.transactions.map(t => ({
-      statement_id: s.id,
+  // Atomic ingest (migration 0004): all rows land or none do.
+  const { data: docId, error: rpcErr } = await db.rpc('ingest_statement', {
+    p_document: {
+      sha256: hash, filename: basename(path), kind: 'bank_csv',
+      bank_account_id: bankAccountId, building_id: acct?.building_id ?? null,
+      storage_path: path, byte_size: size, page_count: null, uploaded_by: actor(),
+    },
+    p_pages: [],
+    p_statement: {
       bank_account_id: bankAccountId,
-      posted_on: t.postedOn,
-      amount_cents: t.amountCents,
-      descriptor: t.descriptor,
-      check_no: t.checkNo ?? null,
-      page_no: null,
-      line_no: t.lineNo ?? null,
+      period_start: parsed.periodStart, period_end: parsed.periodEnd,
+      opening_balance_cents: openingBalanceCents, closing_balance_cents: closingBalanceCents,
+      extract_method: 'csv', extract_version: `${fmt.id}@${fmt.version}`,
+      checksum_ok: true, checksum_delta_cents: 0,   // closing is derived, balances by construction
+    },
+    p_transactions: parsed.transactions.map(t => ({
+      posted_on: t.postedOn, amount_cents: t.amountCents, descriptor: t.descriptor,
+      check_no: t.checkNo ?? null, page_no: null, line_no: t.lineNo ?? null,
     })),
-  );
-
-  await db.from('audit_log').insert({
-    actor: actor(), action: 'ingest_csv', table_name: 'statements', row_id: s.id,
-    after: { sha256: hash, period_end: parsed.periodEnd, closing: closingBalanceCents, anchored: !!prior },
   });
+  if (rpcErr) throw rpcErr;
 
   return {
     status: 'ingested',
-    documentId: doc.id,
+    documentId: docId as string,
     message: `${parsed.periodStart}..${parsed.periodEnd}  ${parsed.transactions.length} txns  ` +
       `open ${formatCents(openingBalanceCents)} -> close ${formatCents(closingBalanceCents)}` +
       (prior ? '' : '  (seeded opening)'),

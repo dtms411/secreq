@@ -112,7 +112,9 @@ export async function generateReport(outBase: string, generatedAt: string): Prom
 
   const [tie, exc, deadlines, mrate, statements] = await Promise.all([
     db.from('v_building_tieout').select('*'),
-    db.from('exceptions').select('kind, severity, amount_cents, status'),
+    // Resolved findings are excluded from the counts — the report states what
+    // is still open, not the full history.
+    db.from('exceptions').select('kind, severity, amount_cents, status').neq('status', 'resolved'),
     db.from('v_open_deadlines').select('lease_id'),
     db.from('v_match_rate').select('*').maybeSingle(),
     db.from('statements').select('extract_method').eq('checksum_ok', true),

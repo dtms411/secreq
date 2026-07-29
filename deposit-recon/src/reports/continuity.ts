@@ -154,7 +154,10 @@ export async function continuityReport(write = false): Promise<{ accounts: numbe
     if (!write) continue;
 
     for (const b of breaks) {
-      const signature = `${a.bankAccountId}:${b.kind}:${b.afterPeriodEnd}:${b.nextPeriodStart}`;
+      // Same signature format the exception detector uses (detectors.ts,
+      // missingStatementPeriod), so the two producers dedupe against each other
+      // and a gap is never recorded twice.
+      const signature = `missing_statement_period:${a.bankAccountId}:${b.kind}:${b.afterPeriodEnd}:${b.nextPeriodStart}`;
       const { data: dup } = await db
         .from('exceptions')
         .select('id')

@@ -29,6 +29,13 @@ export async function runMatching(opts: MatchOptions = DEFAULT_OPTS): Promise<Ma
   const { data: matched } = await db.from('matches').select('bank_transaction_id');
   const already = new Set((matched ?? []).map((m: any) => m.bank_transaction_id));
 
+  // Existing `unmatched` exceptions, so a re-run does not record the same
+  // unmatched transaction twice (an unmatched txn never gets a `matches` row,
+  // so `already` alone would let it re-fire every run).
+  const { data: unmatchedEx } = await db
+    .from('exceptions').select('bank_transaction_id').eq('kind', 'unmatched');
+  const unmatchedSeen = new Set((unmatchedEx ?? []).map((e: any) => e.bank_transaction_id));
+
   // Preload ledger + leases per building on demand.
   const ledgerByBuilding = new Map<string, LedgerLike[]>();
   const leasesByBuilding = new Map<string, LeaseLike[]>();
@@ -74,13 +81,15 @@ export async function runMatching(opts: MatchOptions = DEFAULT_OPTS): Promise<Ma
 
     if (!proposal) {
       result.unmatched++;
+      if (unmatchedSeen.has(t.id)) continue; // already recorded on a prior run
+      unmatchedSeen.add(t.id);
       await db.from('exceptions').insert({
         kind: 'unmatched',
         severity: 'low',
         building_id: buildingId,
         bank_transaction_id: t.id,
         amount_cents: txn.amountCents,
-        detail: { descriptor: txn.descriptor, posted_on: txn.postedOn, reason: 'no exact or fuzzy candidate' },
+        detail: { signature: `unmatched:${t.id}`, descriptor: txn.descriptor, posted_on: txn.postedOn, reason: 'no exact or fuzzy candidate' },
       });
       continue;
     }

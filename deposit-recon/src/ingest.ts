@@ -68,58 +68,34 @@ export async function ingestPdf(path: string, bankAccountId: string, opts: Inges
   }
 
   const { size } = await stat(path);
-  const { data: doc, error: docErr } = await db.from('documents').insert({
-    sha256: hash,
-    filename: basename(path),
-    kind: 'bank_statement_pdf',
-    bank_account_id: bankAccountId,
-    building_id: acct?.building_id ?? null,
-    storage_path: path,
-    byte_size: size,
-    page_count: await pageCount(path),
-    uploaded_by: actor(),
-  }).select('id').single();
-  if (docErr) throw docErr;
-
-  await db.from('document_pages').insert(
-    pages.map((raw_text, i) => ({ document_id: doc.id, page_no: i + 1, raw_text })),
-  );
-
-  const { data: s, error: sErr } = await db.from('statements').insert({
-    document_id: doc.id,
-    bank_account_id: bankAccountId,
-    period_start: stmt.periodStart,
-    period_end: stmt.periodEnd,
-    opening_balance_cents: stmt.openingBalanceCents,
-    closing_balance_cents: stmt.closingBalanceCents,
-    extract_method: method,
-    extract_version: `${parser.id}@${parser.version}`,
-    checksum_ok: true,
-    checksum_delta_cents: 0,
-  }).select('id').single();
-  if (sErr) throw sErr;
-
-  await db.from('bank_transactions').insert(
-    stmt.transactions.map(t => ({
-      statement_id: s.id,
+  // One atomic transaction (see migration 0004). Either the document, its pages,
+  // the statement, and every transaction all land, or none do — no partial
+  // ingest, no orphaned document to wedge the sha256 dedup.
+  const { data: docId, error: rpcErr } = await db.rpc('ingest_statement', {
+    p_document: {
+      sha256: hash, filename: basename(path), kind: 'bank_statement_pdf',
+      bank_account_id: bankAccountId, building_id: acct?.building_id ?? null,
+      storage_path: path, byte_size: size, page_count: await pageCount(path),
+      uploaded_by: actor(),
+    },
+    p_pages: pages.map((raw_text, i) => ({ page_no: i + 1, raw_text })),
+    p_statement: {
       bank_account_id: bankAccountId,
-      posted_on: t.postedOn,
-      amount_cents: t.amountCents,
-      descriptor: t.descriptor,
-      check_no: t.checkNo ?? null,
-      page_no: t.pageNo ?? null,
-      line_no: t.lineNo ?? null,
+      period_start: stmt.periodStart, period_end: stmt.periodEnd,
+      opening_balance_cents: stmt.openingBalanceCents, closing_balance_cents: stmt.closingBalanceCents,
+      extract_method: method, extract_version: `${parser.id}@${parser.version}`,
+      checksum_ok: true, checksum_delta_cents: 0,
+    },
+    p_transactions: stmt.transactions.map(t => ({
+      posted_on: t.postedOn, amount_cents: t.amountCents, descriptor: t.descriptor,
+      check_no: t.checkNo ?? null, page_no: t.pageNo ?? null, line_no: t.lineNo ?? null,
     })),
-  );
-
-  await db.from('audit_log').insert({
-    actor: actor(), action: 'ingest', table_name: 'statements', row_id: s.id,
-    after: { sha256: hash, period_end: stmt.periodEnd, closing: stmt.closingBalanceCents },
   });
+  if (rpcErr) throw rpcErr;
 
   return {
     status: 'ingested',
-    documentId: doc.id,
+    documentId: docId as string,
     message: `${stmt.periodStart}..${stmt.periodEnd}  ${stmt.transactions.length} txns  closing ${formatCents(stmt.closingBalanceCents)}`,
   };
 }
