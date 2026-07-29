@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { formatCents, severityColor } from '@/lib/format';
+import { DemoBanner, demoExceptions } from '@/lib/demo';
 
 interface Ex {
   id: string; kind: string; severity: string; status: string;
@@ -21,21 +22,32 @@ const NEXT: Record<string, string[]> = {
 // note — never the underlying figures.
 export default function Exceptions() {
   const [rows, setRows] = useState<Ex[]>([]);
+  const [demo, setDemo] = useState(false);
   const [showResolved, setShowResolved] = useState(false);
 
   const load = () => {
     let q = supabase.from('exceptions').select('id, kind, severity, status, amount_cents, detail, opened_at');
     if (!showResolved) q = q.neq('status', 'resolved');
-    q.then(({ data }) => {
-      const d = (data ?? []) as Ex[];
-      d.sort((a, b) => (SEV_RANK[a.severity] - SEV_RANK[b.severity]) || a.kind.localeCompare(b.kind));
-      setRows(d);
+    q.then(({ data, error }) => {
+      if (error || !data || data.length === 0) {
+        const dd = demoExceptions.filter((e) => showResolved || e.status !== 'resolved') as Ex[];
+        setRows(sortRows(dd)); setDemo(true);
+      } else {
+        setRows(sortRows(data as Ex[]));
+      }
     });
   };
+
+  const sortRows = (d: Ex[]) =>
+    [...d].sort((a, b) => (SEV_RANK[a.severity] - SEV_RANK[b.severity]) || a.kind.localeCompare(b.kind));
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [showResolved]);
 
   async function setStatus(id: string, status: string) {
+    if (demo) { // preview: mutate locally
+      setRows((r) => sortRows(r.map((e) => (e.id === id ? { ...e, status } : e)).filter((e) => showResolved || e.status !== 'resolved')));
+      return;
+    }
     const patch: Record<string, unknown> = { status };
     if (status === 'resolved') {
       const { data: u } = await supabase.auth.getUser();
@@ -49,6 +61,7 @@ export default function Exceptions() {
   return (
     <>
       <h2 style={{ fontSize: 16 }}>Exception triage</h2>
+      {demo && <DemoBanner />}
       <label style={{ fontSize: 13, color: '#6b7280' }}>
         <input type="checkbox" checked={showResolved} onChange={(e) => setShowResolved(e.target.checked)} /> show resolved
       </label>

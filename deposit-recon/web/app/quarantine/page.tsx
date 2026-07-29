@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { formatCents, severityColor } from '@/lib/format';
+import { DemoBanner, demoQuarantineStatements, demoCriticalExceptions } from '@/lib/demo';
 
 interface Q { statement_id: string; building_id: string; period_start: string; period_end: string; checksum_delta_cents: number; extract_method: string; }
 interface Ex { id: string; kind: string; severity: string; amount_cents: number | null; detail: any; opened_at: string; }
@@ -10,17 +11,25 @@ interface Ex { id: string; kind: string; severity: string; amount_cents: number 
 export default function Quarantine() {
   const [q, setQ] = useState<Q[]>([]);
   const [ex, setEx] = useState<Ex[]>([]);
+  const [demo, setDemo] = useState(false);
 
   useEffect(() => {
-    supabase.from('v_quarantine').select('*').then(({ data }) => setQ((data ?? []) as Q[]));
+    supabase.from('v_quarantine').select('*').then(({ data, error }) => {
+      if (error || !data || data.length === 0) { setQ(demoQuarantineStatements as Q[]); setDemo(true); }
+      else setQ(data as Q[]);
+    });
     supabase.from('exceptions').select('id, kind, severity, amount_cents, detail, opened_at')
       .in('severity', ['critical', 'high']).eq('status', 'open').order('severity')
-      .then(({ data }) => setEx((data ?? []) as Ex[]));
+      .then(({ data, error }) => {
+        if (error || !data || data.length === 0) { setEx(demoCriticalExceptions as Ex[]); setDemo(true); }
+        else setEx(data as Ex[]);
+      });
   }, []);
 
   return (
     <>
       <h2 style={{ fontSize: 16 }}>Quarantine &amp; critical findings</h2>
+      {demo && <DemoBanner />}
 
       <h3 style={{ fontSize: 14 }}>Statements that failed the checksum gate</h3>
       <p style={{ color: '#6b7280', fontSize: 13 }}>Under all-or-nothing ingest this should be empty. Any row here is itself a finding.</p>

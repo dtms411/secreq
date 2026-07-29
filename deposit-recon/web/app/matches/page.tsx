@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { formatCents } from '@/lib/format';
+import { DemoBanner, demoMatches } from '@/lib/demo';
 
 interface M {
   id: string; method: string; confidence: number | null; decided_by: string | null;
@@ -11,21 +12,25 @@ interface M {
 }
 
 // Match approval. Proposals arrive from the CLI matcher with decided_by = null.
-// A match does not count until a human sets decided_by — that is the one write
-// this screen makes (invariant 6: an LLM or rule may propose, never post).
+// A match does not count until a human sets decided_by.
 export default function Matches() {
   const [rows, setRows] = useState<M[]>([]);
+  const [demo, setDemo] = useState(false);
   const [busy, setBusy] = useState<string>();
 
   const load = () =>
     supabase.from('matches')
       .select('id, method, confidence, decided_by, bank_transactions(descriptor, amount_cents, posted_on), leases(tenant_name, unit)')
       .is('decided_by', null)
-      .then(({ data }) => setRows((data ?? []) as unknown as M[]));
+      .then(({ data, error }) => {
+        if (error || !data || data.length === 0) { setRows(demoMatches as unknown as M[]); setDemo(true); }
+        else setRows(data as unknown as M[]);
+      });
 
   useEffect(() => { load(); }, []);
 
   async function approve(id: string) {
+    if (demo) { setRows((r) => r.filter((m) => m.id !== id)); return; } // preview: mutate locally
     setBusy(id);
     const { data: u } = await supabase.auth.getUser();
     await supabase.from('matches').update({ decided_by: u.user?.email ?? 'unknown', decided_at: new Date().toISOString() }).eq('id', id);
@@ -36,6 +41,7 @@ export default function Matches() {
   return (
     <>
       <h2 style={{ fontSize: 16 }}>Match approval</h2>
+      {demo && <DemoBanner />}
       <p style={{ color: '#6b7280', fontSize: 13 }}>{rows.length} proposal(s) pending. Nothing counts until a human approves it.</p>
       <table>
         <thead><tr><th>Posted</th><th>Bank descriptor</th><th className="num">Amount</th><th>Proposed tenant</th><th>Method</th><th className="num">Conf.</th><th></th></tr></thead>
@@ -51,6 +57,7 @@ export default function Matches() {
               <td><button className="act" disabled={busy === m.id} onClick={() => approve(m.id)}>Approve</button></td>
             </tr>
           ))}
+          {rows.length === 0 && <tr><td colSpan={7} style={{ color: '#6b7280' }}>no pending proposals</td></tr>}
         </tbody>
       </table>
     </>

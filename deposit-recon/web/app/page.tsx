@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { formatCents } from '@/lib/format';
+import { DemoBanner, demoTieout } from '@/lib/demo';
 
 interface Row {
   building_id: string; name: string; unit_count: number; interest_required: boolean;
@@ -13,11 +14,14 @@ interface Row {
 
 export default function TieOut() {
   const [rows, setRows] = useState<Row[]>([]);
-  const [err, setErr] = useState<string>();
+  const [demo, setDemo] = useState(false);
 
   useEffect(() => {
     supabase.from('v_building_tieout').select('*').order('expected_variance_cents', { ascending: true })
-      .then(({ data, error }) => { if (error) setErr(error.message); else setRows(data as Row[]); });
+      .then(({ data, error }) => {
+        if (error || !data || data.length === 0) { setRows(demoTieout as Row[]); setDemo(true); }
+        else setRows(data as Row[]);
+      });
   }, []);
 
   const total = rows.reduce((a, r) => a + (r.expected_variance_cents ?? 0), 0);
@@ -25,11 +29,11 @@ export default function TieOut() {
   return (
     <>
       <h2 style={{ fontSize: 16 }}>Tie-out — bank vs. lease universe</h2>
+      {demo && <DemoBanner />}
       <p style={{ color: '#6b7280', fontSize: 13 }}>
         Negative expected-variance = escrow holds less than the lease universe implies (money that never arrived).
         <code style={{ marginLeft: 8 }}>!!</code> = latest statement failed the checksum gate.
       </p>
-      {err && <p style={{ color: '#9ca3af', fontSize: 12 }}>data source not connected yet ({err})</p>}
       <table>
         <thead>
           <tr>
