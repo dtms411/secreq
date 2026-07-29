@@ -29,7 +29,7 @@ export default function TieOut() {
         Negative expected-variance = escrow holds less than the lease universe implies (money that never arrived).
         <code style={{ marginLeft: 8 }}>!!</code> = latest statement failed the checksum gate.
       </p>
-      {err && <p className="neg">RLS/read error: {err}</p>}
+      {err && <p style={{ color: '#9ca3af', fontSize: 12 }}>data source not connected yet ({err})</p>}
       <table>
         <thead>
           <tr>
