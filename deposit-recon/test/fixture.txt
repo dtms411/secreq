@@ -1,0 +1,23 @@
+                          MERIDIAN COMMERCIAL BANK
+                    TENANT SECURITY ESCROW ACCOUNT
+
+  Account Number: XXXXXX4417
+  Statement Period: 04/01/2025 - 04/30/2025
+  Property: 9281 Shore Road
+
+  Beginning Balance     48,750.00
+
+  Date     Description                          Check      Debit       Credit      Balance
+  ------------------------------------------------------------------------------------------
+  04/03    DEPOSIT - RIVERA M UNIT 4B                                  2,400.00    51,150.00
+  04/09    CHECK PAID - REFUND T ADAMS          10442      2,150.00                49,000.00
+  04/17    DEPOSIT - OKONKWO A UNIT 2R                                 2,650.00    51,650.00
+  04/22    CHECK PAID - REFUND L BRENNAN        10443      1,975.00                49,675.00
+  04/30    INTEREST CREDIT                                                31.25    49,706.25
+
+  Total Deposits           5,081.25
+  Total Withdrawals        4,125.00
+
+  Ending Balance        49,706.25
+
+  Page 1 of 1
