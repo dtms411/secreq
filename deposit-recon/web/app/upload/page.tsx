@@ -5,9 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { DemoBanner } from '@/lib/demo';
 
 // Direct-to-Storage upload. The file body goes straight from the browser to
-// Supabase Storage via the authenticated client — never through a Next route,
-// and never near the service key. The local CLI later pulls each object,
-// hashes it, and runs it through the same checksum gate.
+// Supabase Storage — never through a Next route, never near the service key.
 const CONNECTED = !!process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 export default function Upload() {
@@ -31,16 +29,21 @@ export default function Upload() {
 
   return (
     <>
-      <h2 style={{ fontSize: 16 }}>Upload statements</h2>
-      {!CONNECTED && <DemoBanner />}
-      <p style={{ color: '#6b7280', fontSize: 13, maxWidth: 560 }}>
+      <h1 className="page-title">Upload statements</h1>
+      <p className="page-sub">
         Files land in the private <code>statements</code> bucket. Ingestion is run locally by the CLI, not here —
         the seven-year backfill never runs through Vercel.
       </p>
-      <input type="file" multiple accept=".pdf,.csv" disabled={busy} onChange={(e) => onFiles(e.target.files)} />
-      <ul style={{ fontSize: 13, marginTop: 16, lineHeight: 1.6 }}>
-        {log.map((l, i) => <li key={i} style={{ color: l.startsWith('✗') ? '#b91c1c' : '#166534' }}>{l}</li>)}
-      </ul>
+      {!CONNECTED && <DemoBanner />}
+
+      <div className="card" style={{ paddingBottom: 20 }}>
+        <div className="card-title">Add evidence</div>
+        <div className="card-sub">PDF or CSV bank statements. The CLI later hashes each file and runs it through the checksum gate.</div>
+        <input type="file" multiple accept=".pdf,.csv" disabled={busy} onChange={(e) => onFiles(e.target.files)} />
+        <ul style={{ fontSize: 13, marginTop: 16, marginBottom: 0, lineHeight: 1.7, listStyle: 'none', padding: 0 }}>
+          {log.map((l, i) => <li key={i} style={{ color: l.startsWith('✗') ? 'var(--brick)' : 'var(--good)' }}>{l}</li>)}
+        </ul>
+      </div>
     </>
   );
 }

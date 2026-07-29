@@ -11,8 +11,6 @@ interface M {
   leases: { tenant_name: string; unit: string } | null;
 }
 
-// Match approval. Proposals arrive from the CLI matcher with decided_by = null.
-// A match does not count until a human sets decided_by.
 export default function Matches() {
   const [rows, setRows] = useState<M[]>([]);
   const [demo, setDemo] = useState(false);
@@ -30,7 +28,7 @@ export default function Matches() {
   useEffect(() => { load(); }, []);
 
   async function approve(id: string) {
-    if (demo) { setRows((r) => r.filter((m) => m.id !== id)); return; } // preview: mutate locally
+    if (demo) { setRows((r) => r.filter((m) => m.id !== id)); return; }
     setBusy(id);
     const { data: u } = await supabase.auth.getUser();
     await supabase.from('matches').update({ decided_by: u.user?.email ?? 'unknown', decided_at: new Date().toISOString() }).eq('id', id);
@@ -40,26 +38,34 @@ export default function Matches() {
 
   return (
     <>
-      <h2 style={{ fontSize: 16 }}>Match approval</h2>
+      <h1 className="page-title">Match approval</h1>
+      <p className="page-sub">
+        Proposals from the matcher (exact, fuzzy, and LLM-suggested). A match counts for nothing until a human
+        approves it — that is the one write this screen makes.
+      </p>
       {demo && <DemoBanner />}
-      <p style={{ color: '#6b7280', fontSize: 13 }}>{rows.length} proposal(s) pending. Nothing counts until a human approves it.</p>
-      <table>
-        <thead><tr><th>Posted</th><th>Bank descriptor</th><th className="num">Amount</th><th>Proposed tenant</th><th>Method</th><th className="num">Conf.</th><th></th></tr></thead>
-        <tbody>
-          {rows.map((m) => (
-            <tr key={m.id}>
-              <td>{m.bank_transactions?.posted_on}</td>
-              <td>{m.bank_transactions?.descriptor}</td>
-              <td className="num">{formatCents(m.bank_transactions?.amount_cents ?? null)}</td>
-              <td>{m.leases ? `${m.leases.tenant_name} (${m.leases.unit})` : '—'}</td>
-              <td>{m.method}</td>
-              <td className="num">{m.confidence ?? '—'}</td>
-              <td><button className="act" disabled={busy === m.id} onClick={() => approve(m.id)}>Approve</button></td>
-            </tr>
-          ))}
-          {rows.length === 0 && <tr><td colSpan={7} style={{ color: '#6b7280' }}>no pending proposals</td></tr>}
-        </tbody>
-      </table>
+
+      <div className="card">
+        <div className="card-title">{rows.length} proposal{rows.length === 1 ? '' : 's'} pending</div>
+        <div className="card-sub">Review the bank descriptor against the proposed tenant, then approve.</div>
+        <table>
+          <thead><tr><th>Posted</th><th>Bank descriptor</th><th className="num">Amount</th><th>Proposed tenant</th><th>Method</th><th className="num">Conf.</th><th></th></tr></thead>
+          <tbody>
+            {rows.map((m) => (
+              <tr key={m.id}>
+                <td className="muted">{m.bank_transactions?.posted_on}</td>
+                <td className="name">{m.bank_transactions?.descriptor}</td>
+                <td className="num">{formatCents(m.bank_transactions?.amount_cents ?? null)}</td>
+                <td>{m.leases ? `${m.leases.tenant_name} · ${m.leases.unit}` : '—'}</td>
+                <td className="muted">{m.method}</td>
+                <td className="num">{m.confidence != null ? m.confidence.toFixed(2) : '—'}</td>
+                <td><button className="btn btn-primary" disabled={busy === m.id} onClick={() => approve(m.id)}>Approve</button></td>
+              </tr>
+            ))}
+            {rows.length === 0 && <tr><td colSpan={7} className="muted">no pending proposals</td></tr>}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }

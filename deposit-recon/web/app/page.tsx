@@ -24,42 +24,72 @@ export default function TieOut() {
       });
   }, []);
 
-  const total = rows.reduce((a, r) => a + (r.expected_variance_cents ?? 0), 0);
+  const bank = rows.reduce((a, r) => a + (r.bank_cents ?? 0), 0);
+  const universe = rows.reduce((a, r) => a + (r.expected_cents ?? 0), 0);
+  const variance = rows.reduce((a, r) => a + (r.expected_variance_cents ?? 0), 0);
 
   return (
     <>
-      <h2 style={{ fontSize: 16 }}>Tie-out — bank vs. lease universe</h2>
-      {demo && <DemoBanner />}
-      <p style={{ color: '#6b7280', fontSize: 13 }}>
-        Negative expected-variance = escrow holds less than the lease universe implies (money that never arrived).
-        <code style={{ marginLeft: 8 }}>!!</code> = latest statement failed the checksum gate.
+      <h1 className="page-title">Tie-out</h1>
+      <p className="page-sub">
+        Escrow balances against the independently-built lease universe. A negative variance means the trust
+        account holds <em>less</em> than the leases imply — money that never arrived.
       </p>
-      <table>
-        <thead>
-          <tr>
-            <th>Building</th><th>As of</th>
-            <th className="num">Bank</th><th className="num">Ledger</th><th className="num">Expected</th>
-            <th className="num">Ledger var.</th><th className="num">Expected var.</th><th>ck</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.building_id}>
-              <td>{r.name}</td>
-              <td>{r.as_of ?? 'no statement'}</td>
-              <td className="num">{formatCents(r.bank_cents)}</td>
-              <td className="num">{formatCents(r.ledger_cents)}</td>
-              <td className="num">{formatCents(r.expected_cents)}</td>
-              <td className={'num' + ((r.ledger_variance_cents ?? 0) < 0 ? ' neg' : '')}>{formatCents(r.ledger_variance_cents)}</td>
-              <td className={'num' + ((r.expected_variance_cents ?? 0) < 0 ? ' neg' : '')}>{formatCents(r.expected_variance_cents)}</td>
-              <td>{r.checksum_ok === false ? <span className="neg">!!</span> : ''}</td>
+      {demo && <DemoBanner />}
+
+      <div className="stats">
+        <div className="stat">
+          <div className="stat-label">Buildings</div>
+          <div className="stat-num">{rows.length}</div>
+          <div className="stat-sub">escrow accounts reconciled</div>
+        </div>
+        <div className="stat">
+          <div className="stat-label">Escrow held</div>
+          <div className="stat-num">{formatCents(bank)}</div>
+          <div className="stat-sub">latest statement balances</div>
+        </div>
+        <div className="stat">
+          <div className="stat-label">Lease universe</div>
+          <div className="stat-num">{formatCents(universe)}</div>
+          <div className="stat-sub">deposits owed per leases</div>
+        </div>
+        <div className="stat">
+          <div className="stat-label">Expected variance</div>
+          <div className={'stat-num ' + (variance < 0 ? 'neg' : variance > 0 ? 'pos' : '')}>{formatCents(variance)}</div>
+          <div className="stat-sub">{variance < 0 ? 'shortfall vs. lease universe' : 'bank vs. lease universe'}</div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="card-title">By building</div>
+        <div className="card-sub"><span className="flag">!!</span> = latest statement failed the checksum gate.</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Building</th><th>As of</th>
+              <th className="num">Bank</th><th className="num">Ledger</th><th className="num">Expected</th>
+              <th className="num">Ledger var.</th><th className="num">Expected var.</th><th></th>
             </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr><th colSpan={6}>Portfolio expected variance</th><th className={'num' + (total < 0 ? ' neg' : '')}>{formatCents(total)}</th><th /></tr>
-        </tfoot>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.building_id}>
+                <td className="name">{r.name}</td>
+                <td className="muted">{r.as_of ?? 'no statement'}</td>
+                <td className="num">{formatCents(r.bank_cents)}</td>
+                <td className="num">{formatCents(r.ledger_cents)}</td>
+                <td className="num">{formatCents(r.expected_cents)}</td>
+                <td className={'num' + ((r.ledger_variance_cents ?? 0) < 0 ? ' neg' : '')}>{formatCents(r.ledger_variance_cents)}</td>
+                <td className={'num' + ((r.expected_variance_cents ?? 0) < 0 ? ' neg' : '')}>{formatCents(r.expected_variance_cents)}</td>
+                <td>{r.checksum_ok === false ? <span className="flag">!!</span> : ''}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr><th colSpan={6}>Portfolio expected variance</th><th className={'num' + (variance < 0 ? ' neg' : '')}>{formatCents(variance)}</th><th /></tr>
+          </tfoot>
+        </table>
+      </div>
     </>
   );
 }

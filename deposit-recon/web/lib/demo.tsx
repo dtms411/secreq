@@ -8,11 +8,9 @@ export const DEMO = true; // preview build flag; flip off / delete for productio
 
 export function DemoBanner() {
   return (
-    <div style={{
-      background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a',
-      borderRadius: 6, padding: '6px 12px', fontSize: 12, margin: '0 0 12px',
-    }}>
-      <strong>DEMO DATA</strong> — illustrative figures for this preview, not real reconciliation output. No database is connected.
+    <div className="demo-banner">
+      <strong>DEMO DATA</strong>
+      <span>— illustrative figures for this preview, not real reconciliation output. No database is connected.</span>
     </div>
   );
 }

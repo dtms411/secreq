@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { formatCents, severityColor } from '@/lib/format';
+import { formatCents, severityStyle } from '@/lib/format';
 import { DemoBanner, demoExceptions } from '@/lib/demo';
 
 interface Ex {
@@ -18,12 +18,13 @@ const NEXT: Record<string, string[]> = {
   resolved: [],
 };
 
-// Exception triage. The only writes are status transitions and a resolution
-// note — never the underlying figures.
 export default function Exceptions() {
   const [rows, setRows] = useState<Ex[]>([]);
   const [demo, setDemo] = useState(false);
   const [showResolved, setShowResolved] = useState(false);
+
+  const sortRows = (d: Ex[]) =>
+    [...d].sort((a, b) => (SEV_RANK[a.severity] - SEV_RANK[b.severity]) || a.kind.localeCompare(b.kind));
 
   const load = () => {
     let q = supabase.from('exceptions').select('id, kind, severity, status, amount_cents, detail, opened_at');
@@ -38,13 +39,10 @@ export default function Exceptions() {
     });
   };
 
-  const sortRows = (d: Ex[]) =>
-    [...d].sort((a, b) => (SEV_RANK[a.severity] - SEV_RANK[b.severity]) || a.kind.localeCompare(b.kind));
-
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [showResolved]);
 
   async function setStatus(id: string, status: string) {
-    if (demo) { // preview: mutate locally
+    if (demo) {
       setRows((r) => sortRows(r.map((e) => (e.id === id ? { ...e, status } : e)).filter((e) => showResolved || e.status !== 'resolved')));
       return;
     }
@@ -60,30 +58,34 @@ export default function Exceptions() {
 
   return (
     <>
-      <h2 style={{ fontSize: 16 }}>Exception triage</h2>
+      <h1 className="page-title">Exception triage</h1>
+      <p className="page-sub">Every detector finding, highest severity first. Triage moves status only — never the underlying figures.</p>
       {demo && <DemoBanner />}
-      <label style={{ fontSize: 13, color: '#6b7280' }}>
-        <input type="checkbox" checked={showResolved} onChange={(e) => setShowResolved(e.target.checked)} /> show resolved
-      </label>
-      <table style={{ marginTop: 8 }}>
-        <thead><tr><th>Sev</th><th>Kind</th><th className="num">Amount</th><th>Detail</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody>
-          {rows.map((e) => (
-            <tr key={e.id}>
-              <td><span className="badge" style={{ background: severityColor(e.severity) }}>{e.severity}</span></td>
-              <td>{e.kind}</td>
-              <td className="num">{formatCents(e.amount_cents)}</td>
-              <td style={{ whiteSpace: 'normal', maxWidth: 380, color: '#374151' }}>{e.detail?.message ?? JSON.stringify(e.detail)}</td>
-              <td>{e.status}</td>
-              <td>
-                {(NEXT[e.status] ?? []).map((s) => (
-                  <button key={s} className="act" onClick={() => setStatus(e.id, s)}>{s}</button>
-                ))}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+
+      <div className="card">
+        <div className="toolbar">
+          <label><input type="checkbox" checked={showResolved} onChange={(e) => setShowResolved(e.target.checked)} /> show resolved</label>
+        </div>
+        <table>
+          <thead><tr><th>Severity</th><th>Kind</th><th className="num">Amount</th><th>Detail</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>
+            {rows.map((e) => (
+              <tr key={e.id}>
+                <td><span className="badge" style={severityStyle(e.severity)}>{e.severity}</span></td>
+                <td className="name">{e.kind}</td>
+                <td className="num">{formatCents(e.amount_cents)}</td>
+                <td style={{ whiteSpace: 'normal', maxWidth: 400, color: 'var(--ink-2)' }}>{e.detail?.message ?? JSON.stringify(e.detail)}</td>
+                <td className="muted">{e.status}</td>
+                <td>
+                  {(NEXT[e.status] ?? []).map((s) => (
+                    <button key={s} className="btn" onClick={() => setStatus(e.id, s)}>{s}</button>
+                  ))}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }
