@@ -14,6 +14,7 @@ import type { LeaseColumnMap } from './leases/parse.js';
 import { runMatching } from './match/run.js';
 import { runDetectors } from './exceptions/run.js';
 import { runDeadlines } from './deadline/run.js';
+import { seed } from './seed.js';
 import { listParsers } from './parsers/registry.js';
 
 function today(): string {
@@ -23,6 +24,7 @@ function today(): string {
 const [cmd, ...args] = process.argv.slice(2);
 
 const usage = `
+  seed <buildings.csv> <accounts.csv>        load the 45 buildings + bank accounts
   ingest <bank_account_id> <file.pdf...>     parse and load PDF statements
   ingest-csv <bank_account_id> <file.csv> --format <fmt.json> [--seed <cents>]
   backfill <root> --account <id>             resumable batch ingest of a tree
@@ -142,6 +144,13 @@ switch (cmd) {
     if (r.unresolvedBuilding.length) console.log(`  ${r.unresolvedBuilding.length} row(s) had an unresolved building — not loaded`);
     for (const p of r.problems) console.log(`  line ${p.line}: ${p.reason}`);
     for (const n of r.notes) console.log(`  note (line ${n.line}): ${n.note}`);
+    break;
+  }
+
+  case 'seed': {
+    const [buildings, accounts] = args;
+    if (!buildings || !accounts) { console.error(usage); process.exit(1); }
+    await seed(buildings, accounts);
     break;
   }
 

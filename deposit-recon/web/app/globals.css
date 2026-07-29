@@ -1,0 +1,13 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #111827; }
+a { color: #2563eb; text-decoration: none; }
+nav a { margin-right: 16px; font-size: 14px; }
+main { padding: 16px 24px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
+th { color: #6b7280; font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+button.act { padding: 4px 10px; border-radius: 6px; border: 1px solid #d1d5db; background: #f9fafb; cursor: pointer; font-size: 12px; margin-right: 6px; }
+button.act:hover { background: #f3f4f6; }
+.neg { color: #b91c1c; }
+.badge { display: inline-block; padding: 1px 6px; border-radius: 10px; color: white; font-size: 11px; }

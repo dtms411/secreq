@@ -1,4 +1,10 @@
+# dependencies & build output, anywhere in the tree
 node_modules/
+.next/
+*.tsbuildinfo
+
+# secrets & local state
 .env
+.env.local
 *.log
 .backfill-journal.jsonl
