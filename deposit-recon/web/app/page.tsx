@@ -24,9 +24,15 @@ export default function TieOut() {
       });
   }, []);
 
-  const bank = rows.reduce((a, r) => a + (r.bank_cents ?? 0), 0);
-  const universe = rows.reduce((a, r) => a + (r.expected_cents ?? 0), 0);
-  const variance = rows.reduce((a, r) => a + (r.expected_variance_cents ?? 0), 0);
+  // Reconcile over buildings that actually have a statement, so the tiles agree:
+  // Escrow held − Lease universe === Expected variance. A no-statement building
+  // has an unknown bank balance and no defined variance; counting its expected
+  // in the universe but not its (null) bank would make the tiles fail to add up.
+  const reconciled = rows.filter((r) => r.bank_cents != null);
+  const bank = reconciled.reduce((a, r) => a + (r.bank_cents ?? 0), 0);
+  const universe = reconciled.reduce((a, r) => a + (r.expected_cents ?? 0), 0);
+  const variance = reconciled.reduce((a, r) => a + (r.expected_variance_cents ?? 0), 0);
+  const noStatement = rows.length - reconciled.length;
 
   return (
     <>
@@ -41,7 +47,7 @@ export default function TieOut() {
         <div className="stat">
           <div className="stat-label">Buildings</div>
           <div className="stat-num">{rows.length}</div>
-          <div className="stat-sub">escrow accounts reconciled</div>
+          <div className="stat-sub">{noStatement ? `${reconciled.length} reconciled · ${noStatement} no statement` : 'escrow accounts reconciled'}</div>
         </div>
         <div className="stat">
           <div className="stat-label">Escrow held</div>
@@ -62,7 +68,10 @@ export default function TieOut() {
 
       <div className="card">
         <div className="card-title">By building</div>
-        <div className="card-sub"><span className="flag">!!</span> = latest statement failed the checksum gate.</div>
+        <div className="card-sub">
+          <span className="flag">!!</span> = latest statement failed the checksum gate.
+          {noStatement > 0 && ` ${noStatement} building${noStatement === 1 ? '' : 's'} without a statement are shown but excluded from portfolio totals.`}
+        </div>
         <table>
           <thead>
             <tr>

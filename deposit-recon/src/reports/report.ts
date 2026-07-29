@@ -30,6 +30,35 @@ export interface ReportData {
 const SEV_ORDER = ['critical', 'high', 'medium', 'low'];
 const MACHINE_READ = new Set(['pdftotext', 'csv']);
 
+export interface PortfolioTotals {
+  bankTotal: number; expectedTotal: number; expectedVar: number;
+  reconciled: number; noStatement: number;
+}
+
+/**
+ * Portfolio totals that RECONCILE. A building with no statement has no known
+ * bank balance (bank_cents null) and no defined variance, so it is excluded
+ * from all three sums and reported separately. This guarantees the identity
+ *   expectedVar === bankTotal − expectedTotal
+ * because every included building has expected_variance = bank − expected, so
+ * the summed variance equals the summed bank minus the summed expected. Mixing
+ * in a no-statement building (expected counted, bank/variance not) would break
+ * that identity — the exact "numbers that don't add up" failure this system is
+ * meant to avoid.
+ */
+export function reconcilePortfolio(
+  buildings: { bankCents: number | null; expectedCents: number | null; expectedVarianceCents: number | null }[],
+): PortfolioTotals {
+  const r = buildings.filter(b => b.bankCents != null);
+  return {
+    bankTotal: r.reduce((a, b) => a + (b.bankCents ?? 0), 0),
+    expectedTotal: r.reduce((a, b) => a + (b.expectedCents ?? 0), 0),
+    expectedVar: r.reduce((a, b) => a + (b.expectedVarianceCents ?? 0), 0),
+    reconciled: r.length,
+    noStatement: buildings.length - r.length,
+  };
+}
+
 export function renderReport(d: ReportData): { markdown: string; json: string } {
   const L: string[] = [];
   const money = (c: number | null | undefined) => formatCents(c ?? 0);
@@ -39,15 +68,14 @@ export function renderReport(d: ReportData): { markdown: string; json: string } 
   L.push(`_Generated ${d.generatedAt}. Figures are integer cents; credits positive, debits negative._`);
   L.push('');
 
-  // Portfolio totals
-  const bankTotal = d.buildings.reduce((a, b) => a + (b.bankCents ?? 0), 0);
-  const expectedTotal = d.buildings.reduce((a, b) => a + (b.expectedCents ?? 0), 0);
-  const expectedVar = d.buildings.reduce((a, b) => a + (b.expectedVarianceCents ?? 0), 0);
+  // Portfolio totals — reconciled over buildings that have a statement, so
+  // Escrow held − Lease universe === Expected variance, exactly.
+  const { bankTotal, expectedTotal, expectedVar, reconciled, noStatement } = reconcilePortfolio(d.buildings);
   const quarantined = d.buildings.filter(b => b.checksumOk === false).length;
 
   L.push('## Portfolio');
   L.push('');
-  L.push(`- Buildings reported: **${d.buildings.length}**`);
+  L.push(`- Buildings: **${d.buildings.length}**${noStatement ? ` (${reconciled} reconciled; ${noStatement} without a statement, excluded from totals)` : ''}`);
   L.push(`- Escrow held (latest statements): **${money(bankTotal)}**`);
   L.push(`- Lease universe expects: **${money(expectedTotal)}**`);
   L.push(`- Expected variance (bank − lease universe): **${money(expectedVar)}** ${expectedVar < 0 ? '— escrow holds less than the leases imply' : ''}`);
