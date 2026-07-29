@@ -12,8 +12,10 @@ import {
 import { loadLeases } from './leases/load.js';
 import type { LeaseColumnMap } from './leases/parse.js';
 import { runMatching } from './match/run.js';
+import { runLlmMatching } from './llm/run.js';
 import { runDetectors } from './exceptions/run.js';
 import { runDeadlines } from './deadline/run.js';
+import { generateReport } from './reports/report.js';
 import { seed } from './seed.js';
 import { listParsers } from './parsers/registry.js';
 
@@ -25,7 +27,7 @@ const [cmd, ...args] = process.argv.slice(2);
 
 const usage = `
   seed <buildings.csv> <accounts.csv>        load the 45 buildings + bank accounts
-  ingest <bank_account_id> <file.pdf...>     parse and load PDF statements
+  ingest <bank_account_id> <file.pdf...> [--ocr]   parse and load PDF statements
   ingest-csv <bank_account_id> <file.csv> --format <fmt.json> [--seed <cents>]
   backfill <root> --account <id>             resumable batch ingest of a tree
   backfill <root> --map <dirmap.json>          (route each file by parent dir)
@@ -33,8 +35,10 @@ const usage = `
   continuity [--write]                       per-account gaps in the statement series
   leases <file.csv> --map <map.json>         load the independent lease universe
   match                                      propose bank<->ledger matches (human decides)
+  llm-match                                  LLM proposes matches for the unmatched (human decides)
   exceptions [--dry]                         run all detectors into the triage queue
   deadlines [--date YYYY-MM-DD]              daily 14-day refund clock
+  report [outfile-base]                      counsel-facing markdown + json report
   tieout                                     phase 1 variance report
   parsers                                    list registered bank formats
 `;
@@ -44,7 +48,7 @@ const usage = `
  *  through the dedicated `ingest-csv` command rather than the tree walk. */
 const ingestByExtension: IngestFn = async (path, acct) => {
   const ext = extname(path).toLowerCase();
-  if (ext === '.pdf') return ingestPdf(path, acct);
+  if (ext === '.pdf') return ingestPdf(path, acct, { ocr: args.includes('--ocr') });
   if (ext === '.csv') {
     return { status: 'errored', message: 'csv needs an explicit --format; use `ingest-csv` (not the tree walk)' };
   }
@@ -72,9 +76,11 @@ switch (cmd) {
     const [acct, ...files] = args;
     if (!acct || !files.length) { console.error(usage); process.exit(1); }
     let quarantined = 0;
+    const ocr = args.includes('--ocr');
     for (const f of files) {
+      if (f.startsWith('--')) continue;
       try {
-        const r = await ingestPdf(f, acct);
+        const r = await ingestPdf(f, acct, { ocr });
         console.log(`[${r.status}] ${f}\n  ${r.message}`);
         if (r.status === 'quarantined') quarantined++;
       } catch (e) {
@@ -155,8 +161,10 @@ switch (cmd) {
   }
 
   case 'match': await runMatching(); break;
+  case 'llm-match': await runLlmMatching(); break;
   case 'exceptions': await runDetectors(!args.includes('--dry')); break;
   case 'deadlines': await runDeadlines(flag('--date') ?? today()); break;
+  case 'report': await generateReport(args[0] && !args[0].startsWith('--') ? args[0] : 'recon-report', today()); break;
   case 'continuity': await continuityReport(args.includes('--write')); break;
   case 'tieout': await tieout(); break;
   case 'parsers': console.table(listParsers()); break;

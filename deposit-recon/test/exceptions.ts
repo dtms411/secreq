@@ -127,6 +127,17 @@ console.log('exception detectors — positive and negative per detector');
   check('missing_statement_period -', d.missingStatementPeriod({ ...base(), accounts: [escrow], statements: contiguous }, O).length === 0);
 }
 
+// 12. interest_account_noncompliant (GOL §7-103)
+{
+  const bldg = [{ id: 'B1', name: '9281 Shore Road', interestRequired: true }];
+  const pos = { ...base(), accounts: [{ ...escrow, isInterestBearing: false }], buildings: bldg };
+  const neg = { ...base(), accounts: [{ ...escrow, isInterestBearing: true }], buildings: bldg };
+  const small = { ...base(), accounts: [{ ...escrow, isInterestBearing: false }], buildings: [{ id: 'B1', name: 'x', interestRequired: false }] };
+  check('interest_account_noncompliant +', d.interestAccountNoncompliant(pos, O).length === 1);
+  check('interest_account_noncompliant - (interest-bearing)', d.interestAccountNoncompliant(neg, O).length === 0);
+  check('interest_account_noncompliant - (under 6 units)', d.interestAccountNoncompliant(small, O).length === 0);
+}
+
 // full sweep produces a triaged queue (severities present, ordered)
 {
   const ds = { ...base(), accounts: [escrow], txns: [txn({ amountCents: -215000, descriptor: 'CHECK PAID - REFUND' })], leases: [lease({})] };

@@ -2,6 +2,7 @@ import { basename } from 'node:path';
 import { stat } from 'node:fs/promises';
 import { db, actor } from './db.js';
 import { sha256, pageCount, extractPages, looksScanned } from './pdf.js';
+import { ocrAvailable, ocrPages } from './ocr.js';
 import { selectParser } from './parsers/registry.js';
 import { verify, diagnose } from './checksum.js';
 import { formatCents } from './parsers/types.js';
@@ -12,12 +13,19 @@ export interface IngestResult {
   message: string;
 }
 
+export interface IngestOptions {
+  /** Attempt OCR on scanned pages instead of quarantining them. Off by default:
+   *  OCR is model-read and must be opted into, so a machine-read run never
+   *  silently mixes in OCR'd figures. */
+  ocr?: boolean;
+}
+
 /**
  * One statement, one transaction. Either the whole document lands with a
  * passing checksum or nothing lands at all -- a partially ingested statement
  * is worse than an absent one because it looks complete.
  */
-export async function ingestPdf(path: string, bankAccountId: string): Promise<IngestResult> {
+export async function ingestPdf(path: string, bankAccountId: string, opts: IngestOptions = {}): Promise<IngestResult> {
   const hash = await sha256(path);
 
   const { data: existing } = await db
@@ -26,9 +34,17 @@ export async function ingestPdf(path: string, bankAccountId: string): Promise<In
     return { status: 'duplicate', documentId: existing.id, message: `already ingested as ${existing.id}` };
   }
 
-  const pages = await extractPages(path);
+  let pages = await extractPages(path);
+  let method: 'pdftotext' | 'ocr' = 'pdftotext';
   if (looksScanned(pages)) {
-    return { status: 'quarantined', message: 'no text layer -- this is a scan and needs OCR' };
+    if (!opts.ocr) {
+      return { status: 'quarantined', message: 'no text layer -- this is a scan and needs OCR (pass --ocr)' };
+    }
+    if (!(await ocrAvailable())) {
+      return { status: 'quarantined', message: 'scan needs OCR but tesseract/pdftoppm are not installed' };
+    }
+    pages = await ocrPages(path, await pageCount(path));
+    method = 'ocr';
   }
 
   const parser = selectParser(pages[0] ?? '');
@@ -76,7 +92,7 @@ export async function ingestPdf(path: string, bankAccountId: string): Promise<In
     period_end: stmt.periodEnd,
     opening_balance_cents: stmt.openingBalanceCents,
     closing_balance_cents: stmt.closingBalanceCents,
-    extract_method: 'pdftotext',
+    extract_method: method,
     extract_version: `${parser.id}@${parser.version}`,
     checksum_ok: true,
     checksum_delta_cents: 0,

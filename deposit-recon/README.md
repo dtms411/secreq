@@ -52,12 +52,19 @@ wrong numbers that look right.
     npm run cli -- leases rentroll.csv --map leasemap.json
 
     # 4. analysis
-    npm run cli -- match                                   # proposals; a human decides
-    npm run cli -- exceptions                              # run all detectors
+    npm run cli -- match                                   # rule-based proposals; a human decides
+    npm run cli -- llm-match                               # LLM proposals for the unmatched (needs ANTHROPIC_API_KEY)
+    npm run cli -- exceptions                              # run all 12 detectors
     npm run cli -- tieout                                  # phase-1 variance report
+    npm run cli -- report recon-report                     # counsel-facing markdown + json
 
     # 5. daily, from cron
     npm run cli -- deadlines                               # 14-day refund clock
+
+Scanned statements: add `--ocr` to `ingest`/`backfill` to OCR image-only PDFs
+(tesseract + pdftoppm). OCR is model-read — recorded as `extract_method='ocr'`
+and never conflated with the machine-read text path — and clears the same
+checksum gate, so a misread scan quarantines rather than posting wrong numbers.
 
 Run the seven-year backfill locally. Vercel hosts the review UI (`web/`) and the
 go-forward monthly ingest, where documents arrive one at a time.
@@ -76,11 +83,18 @@ nothing derives one from the other.
 - **leases** — the independent baseline, built from lease/rent-roll source
   documents. `keys_returned_on` is distinct from `vacated_on`; it starts the
   14-day clock.
-- **match** — tiered exact → fuzzy → unmatched. Every match is a *proposal*
-  (`decided_by = null`); it counts only once a human approves it. The auto-match
-  rate is reported; over ~85% early means the rules are too loose.
-- **exceptions** — eleven detectors (highest value first: `unexplained_debit`,
-  `deposit_never_banked`, `refund_payee_mismatch`, …) writing a triaged queue.
+- **match / llm-match** — tiered exact → fuzzy → unmatched, then an optional LLM
+  pass over what's left. Every match is a *proposal* (`decided_by = null`, method
+  `exact`/`fuzzy`/`llm_suggested`); it counts only once a human approves it. The
+  LLM may propose, never post (invariant 6): it suggests a lease and a confidence
+  and can reverse-engineer an unfamiliar layout for a human, but it never writes a
+  ledger entry, resolves an exception, or sets `decided_by`.
+- **exceptions** — twelve detectors (highest value first: `unexplained_debit`,
+  `deposit_never_banked`, `refund_payee_mismatch`, …, plus `interest_account_`
+  `noncompliant` for GOL §7-103) writing a triaged queue.
+- **report** — a counsel-facing Markdown + JSON reconciliation. Machine-read
+  (`pdftotext`/`csv`) and model-read (`ocr`/`llm`) figures are reported
+  separately and never conflated (invariant 5).
 - **deadlines** — the daily 14-day statutory clock, escalating at day 7 / 10 /
   14 and past due. Highest-dollar alert in the system: missing the window
   forfeits the whole deposit, and it runs daily precisely so a monthly cycle

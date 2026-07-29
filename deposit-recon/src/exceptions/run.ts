@@ -1,7 +1,7 @@
 import { db } from '../db.js';
 import {
   runAllDetectors, DEFAULT_DETECTOR_OPTS, type DetectorOptions,
-  type Dataset, type AccountRef, type TxnRef, type LeaseRef, type LedgerRef, type MatchRef, type StatementRef, type Detected,
+  type Dataset, type AccountRef, type TxnRef, type LeaseRef, type LedgerRef, type MatchRef, type StatementRef, type BuildingRef, type Detected,
 } from './detectors.js';
 
 // Loads the whole reconciliation dataset, runs every detector, and records the
@@ -10,18 +10,23 @@ import {
 // duplicated, so this is safe to run after every ingest.
 
 async function loadDataset(): Promise<Dataset> {
-  const [accountsR, txnsR, leasesR, ledgerR, matchesR, statementsR] = await Promise.all([
-    db.from('bank_accounts').select('id, building_id, account_type, account_last4'),
+  const [accountsR, txnsR, leasesR, ledgerR, matchesR, statementsR, buildingsR] = await Promise.all([
+    db.from('bank_accounts').select('id, building_id, account_type, account_last4, is_interest_bearing'),
     db.from('bank_transactions').select('id, bank_account_id, amount_cents, posted_on, descriptor, check_no, counterparty, bank_accounts(building_id, account_type)'),
     db.from('leases').select('id, building_id, unit, tenant_name, signed_on, term_start, vacated_on, keys_returned_on, monthly_rent_cents, expected_deposit_cents'),
     db.from('deposit_ledger').select('id, lease_id, entry_type, amount_cents, entry_date'),
     db.from('matches').select('bank_transaction_id, lease_id'),
     db.from('statements').select('bank_account_id, period_start, period_end, opening_balance_cents, closing_balance_cents').eq('checksum_ok', true),
+    db.from('buildings').select('id, name, interest_required'),
   ]);
-  for (const r of [accountsR, txnsR, leasesR, ledgerR, matchesR, statementsR]) if (r.error) throw r.error;
+  for (const r of [accountsR, txnsR, leasesR, ledgerR, matchesR, statementsR, buildingsR]) if (r.error) throw r.error;
 
   const accounts: AccountRef[] = (accountsR.data ?? []).map((a: any) => ({
     id: a.id, buildingId: a.building_id, type: a.account_type, last4: a.account_last4,
+    isInterestBearing: !!a.is_interest_bearing,
+  }));
+  const buildings: BuildingRef[] = (buildingsR.data ?? []).map((b: any) => ({
+    id: b.id, name: b.name, interestRequired: !!b.interest_required,
   }));
   const txns: TxnRef[] = (txnsR.data ?? []).map((t: any) => ({
     id: t.id, buildingId: t.bank_accounts?.building_id ?? null, accountId: t.bank_account_id,
@@ -43,7 +48,7 @@ async function loadDataset(): Promise<Dataset> {
     openingCents: Number(s.opening_balance_cents), closingCents: Number(s.closing_balance_cents),
   }));
 
-  return { accounts, txns, leases, ledger, matches, statements };
+  return { accounts, txns, leases, ledger, matches, statements, buildings };
 }
 
 export interface DetectRunResult {

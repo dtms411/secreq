@@ -25,7 +25,8 @@ export interface Detected {
   detail: Record<string, unknown>;
 }
 
-export interface AccountRef { id: string; buildingId: string | null; type: 'escrow' | 'operating'; last4: string; }
+export interface AccountRef { id: string; buildingId: string | null; type: 'escrow' | 'operating'; last4: string; isInterestBearing?: boolean; }
+export interface BuildingRef { id: string; name: string; interestRequired: boolean; }
 export interface TxnRef {
   id: string; buildingId: string | null; accountId: string; accountType: 'escrow' | 'operating';
   amountCents: number; postedOn: string; descriptor: string; checkNo?: string | null; counterparty?: string | null;
@@ -46,6 +47,7 @@ export interface Dataset {
   ledger: LedgerRef[];
   matches: MatchRef[];
   statements: StatementRef[];
+  buildings?: BuildingRef[];
 }
 
 export interface DetectorOptions {
@@ -349,6 +351,32 @@ export function missingStatementPeriod(ds: Dataset, _o: DetectorOptions): Detect
   return out;
 }
 
+// ---------------------------------------------------- 12. interest_account_noncompliant (high)
+// GOL §7-103: a building of 6+ dwelling units must hold deposits in an
+// interest-bearing NY account. An escrow account for such a building that is not
+// interest-bearing is a statutory violation for the whole building.
+export function interestAccountNoncompliant(ds: Dataset, _o: DetectorOptions): Detected[] {
+  const escrowByBuilding = new Map<string, AccountRef[]>();
+  for (const a of ds.accounts) {
+    if (a.type !== 'escrow' || !a.buildingId) continue;
+    (escrowByBuilding.get(a.buildingId) ?? escrowByBuilding.set(a.buildingId, []).get(a.buildingId)!).push(a);
+  }
+  const out: Detected[] = [];
+  for (const b of ds.buildings ?? []) {
+    if (!b.interestRequired) continue;
+    const accts = escrowByBuilding.get(b.id) ?? [];
+    if (accts.length && !accts.some(a => a.isInterestBearing)) {
+      out.push({
+        kind: 'interest_account_noncompliant', severity: 'high',
+        buildingId: b.id,
+        signature: `interest_account_noncompliant:${b.id}`,
+        detail: { building: b.name, note: 'GOL §7-103: 6+ units requires an interest-bearing account', accounts: accts.map(a => a.last4) },
+      });
+    }
+  }
+  return out;
+}
+
 export type Detector = (ds: Dataset, o: DetectorOptions) => Detected[];
 
 /** In value order, highest first. */
@@ -364,6 +392,7 @@ export const DETECTORS: Detector[] = [
   depositExceedsOneMonth,
   staleCredit,
   missingStatementPeriod,
+  interestAccountNoncompliant,
 ];
 
 export function runAllDetectors(ds: Dataset, o: DetectorOptions = DEFAULT_DETECTOR_OPTS): Detected[] {
