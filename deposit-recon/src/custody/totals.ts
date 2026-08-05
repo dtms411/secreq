@@ -29,8 +29,12 @@ export function custodyTotals(records: CustodyRecord[], today: string, o: Custod
   for (const r of records) {
     totalReceivedCents += r.amountCents;
     inMasterCents += r.inMasterCents;
-    const hasSub = !!(r.subaccountLast4 || r.subaccountOpenedOn);
-    if (hasSub) inSubaccountsCents += Math.max(0, r.amountCents - r.inMasterCents);
+    // Money still in an OPEN subaccount — exclude deposits that have started
+    // leaving (returned / posted / refunded / closed / bank closing).
+    const leaving = r.stage === 'bank_closing' || r.stage === 'funds_returned'
+      || r.stage === 'posted' || r.stage === 'refunded' || r.stage === 'closed';
+    const heldInSub = !!(r.subaccountLast4 || r.subaccountOpenedOn) && !leaving;
+    if (heldInSub) inSubaccountsCents += Math.max(0, r.amountCents - r.inMasterCents);
     if ((r.stage === 'funds_returned' || r.stage === 'posted') && !r.refundedOn) {
       refundPending++;
       refundPendingCents += r.fundsReturnedCents ?? r.amountCents;

@@ -40,20 +40,26 @@ export const demoMatches = [
 ];
 
 // ---- custody control (the office tracker, tied in) ----------------------
-// v_custody_summary is per building; the dashboard header sums these. Figures
-// are internally consistent with demoMasterAging below (Σ in_master matches).
-export const demoCustodySummary = [
-  { building_id: 'd-020', building: 'DEMO — Property-020', total_received_cents: 1845000, in_master_cents: 695000, in_subaccounts_cents: 900000, refund_pending: 1, closed_records: 3, master_aged_over_30: 2 },
-  { building_id: 'd-011', building: 'DEMO — Property-011', total_received_cents: 620000, in_master_cents: 90000, in_subaccounts_cents: 440000, refund_pending: 0, closed_records: 1, master_aged_over_30: 1 },
+// Editable custody records. In the preview these are the single source the
+// custody screen reads, edits, and adds to; the dashboard tiles and Master
+// aging recompute from them live (real mode reads custody_deposits + the views).
+import type { CustodyRow } from './custody';
+
+export const demoCustodyRecords: CustodyRow[] = [
+  { id: 'c1', building_id: 'd-020', building: 'DEMO — Property-020', unit: '1A', tenant_name: 'Alvarez R', kind: 'initial', amount_cents: 250000, received_on: '2024-12-20', sent_to_bank_on: '2025-01-02', bank_cleared_on: '2025-01-06', in_master_cents: 250000, subaccount_last4: null, subaccount_opened_on: null, allocated_on: null, stage: 'in_master', responsible_employee: 'J. Ruiz', next_action: 'Open subaccount + allocate', vacate_date: null, bank_account_closed_on: null, funds_returned_on: null, funds_returned_cents: null, refunded_on: null, refunded_cents: null, final_status: null },
+  { id: 'c2', building_id: 'd-020', building: 'DEMO — Property-020', unit: '4C', tenant_name: 'Bianchi L', kind: 'initial', amount_cents: 265000, received_on: '2025-06-14', sent_to_bank_on: '2025-06-16', bank_cleared_on: '2025-06-20', in_master_cents: 265000, subaccount_last4: null, subaccount_opened_on: null, allocated_on: null, stage: 'in_master', responsible_employee: 'J. Ruiz', next_action: 'Open subaccount + allocate', vacate_date: null, bank_account_closed_on: null, funds_returned_on: null, funds_returned_cents: null, refunded_on: null, refunded_cents: null, final_status: null },
+  { id: 'c3', building_id: 'd-020', building: 'DEMO — Property-020', unit: '2B', tenant_name: 'Okonkwo A', kind: 'initial', amount_cents: 180000, received_on: '2025-07-22', sent_to_bank_on: '2025-07-24', bank_cleared_on: '2025-07-28', in_master_cents: 180000, subaccount_last4: '7788', subaccount_opened_on: '2025-07-30', allocated_on: null, stage: 'subaccount_pending', responsible_employee: 'M. Diaz', next_action: 'Allocate into 7788', vacate_date: null, bank_account_closed_on: null, funds_returned_on: null, funds_returned_cents: null, refunded_on: null, refunded_cents: null, final_status: null },
+  { id: 'c4', building_id: 'd-020', building: 'DEMO — Property-020', unit: '5A', tenant_name: 'Rivera M', kind: 'initial', amount_cents: 240000, received_on: '2025-02-24', sent_to_bank_on: '2025-02-26', bank_cleared_on: '2025-03-01', in_master_cents: 0, subaccount_last4: '7789', subaccount_opened_on: '2025-03-05', allocated_on: '2025-03-05', stage: 'in_subaccount', responsible_employee: 'J. Ruiz', next_action: null, vacate_date: null, bank_account_closed_on: null, funds_returned_on: null, funds_returned_cents: null, refunded_on: null, refunded_cents: null, final_status: null },
+  { id: 'c5', building_id: 'd-020', building: 'DEMO — Property-020', unit: '6C', tenant_name: 'Thompson K', kind: 'initial', amount_cents: 200000, received_on: '2024-08-10', sent_to_bank_on: '2024-08-12', bank_cleared_on: '2024-08-16', in_master_cents: 0, subaccount_last4: '7712', subaccount_opened_on: '2024-08-20', allocated_on: '2024-08-20', stage: 'funds_returned', responsible_employee: 'J. Ruiz', next_action: 'Refund tenant — 14-day clock running', vacate_date: '2025-05-20', bank_account_closed_on: '2025-06-01', funds_returned_on: '2025-06-01', funds_returned_cents: 200000, refunded_on: null, refunded_cents: null, final_status: null },
+  { id: 'c6', building_id: 'd-011', building: 'DEMO — Property-011', unit: '3R', tenant_name: 'Haley P', kind: 'additional', amount_cents: 90000, received_on: '2025-04-24', sent_to_bank_on: '2025-04-28', bank_cleared_on: '2025-05-01', in_master_cents: 90000, subaccount_last4: null, subaccount_opened_on: null, allocated_on: null, stage: 'in_master', responsible_employee: 'M. Diaz', next_action: 'Open subaccount + allocate', vacate_date: null, bank_account_closed_on: null, funds_returned_on: null, funds_returned_cents: null, refunded_on: null, refunded_cents: null, final_status: null },
+  { id: 'c7', building_id: 'd-011', building: 'DEMO — Property-011', unit: '2B', tenant_name: 'Okafor N', kind: 'initial', amount_cents: 220000, received_on: '2025-01-15', sent_to_bank_on: '2025-01-17', bank_cleared_on: '2025-01-21', in_master_cents: 0, subaccount_last4: '7790', subaccount_opened_on: '2025-01-25', allocated_on: '2025-01-25', stage: 'active', responsible_employee: 'M. Diaz', next_action: null, vacate_date: null, bank_account_closed_on: null, funds_returned_on: null, funds_returned_cents: null, refunded_on: null, refunded_cents: null, final_status: null },
+  { id: 'c8', building_id: 'd-011', building: 'DEMO — Property-011', unit: '7D', tenant_name: 'Nguyen T', kind: 'initial', amount_cents: 150000, received_on: '2023-06-01', sent_to_bank_on: '2023-06-03', bank_cleared_on: '2023-06-07', in_master_cents: 0, subaccount_last4: '7655', subaccount_opened_on: '2023-06-10', allocated_on: '2023-06-10', stage: 'closed', responsible_employee: 'M. Diaz', next_action: null, vacate_date: '2025-03-20', bank_account_closed_on: '2025-04-01', funds_returned_on: '2025-04-01', funds_returned_cents: 150000, refunded_on: '2025-04-10', refunded_cents: 150000, final_status: 'Refunded in full' },
 ];
 
-// v_master_account_aging — every dollar still pooled in the Santander Master
-// account, days outstanding since it cleared. Oldest money is the headline risk.
-export const demoMasterAging = [
-  { id: 'c1', building: 'DEMO — Property-020', unit: '1A', tenant_name: 'Alvarez R', kind: 'initial', in_master_cents: 250000, since: '2025-01-06', days_in_master: 211, subaccount_last4: null, stage: 'in_master', responsible_employee: 'J. Ruiz', next_action: 'Open subaccount + allocate' },
-  { id: 'c2', building: 'DEMO — Property-011', unit: '3R', tenant_name: 'Haley P', kind: 'additional', in_master_cents: 90000, since: '2025-05-01', days_in_master: 96, subaccount_last4: null, stage: 'in_master', responsible_employee: 'M. Diaz', next_action: 'Open subaccount + allocate' },
-  { id: 'c3', building: 'DEMO — Property-020', unit: '4C', tenant_name: 'Bianchi L', kind: 'initial', in_master_cents: 265000, since: '2025-06-20', days_in_master: 46, subaccount_last4: null, stage: 'in_master', responsible_employee: 'J. Ruiz', next_action: 'Open subaccount + allocate' },
-  { id: 'c4', building: 'DEMO — Property-020', unit: '2B', tenant_name: 'Okonkwo A', kind: 'initial', in_master_cents: 180000, since: '2025-07-28', days_in_master: 8, subaccount_last4: '7788', stage: 'subaccount_pending', responsible_employee: 'M. Diaz', next_action: 'Allocate into 7788' },
+// Demo buildings to pick from when adding a new deposit on the site.
+export const demoBuildings = [
+  { id: 'd-020', name: 'DEMO — Property-020' },
+  { id: 'd-011', name: 'DEMO — Property-011' },
 ];
 
 // Illustrative Santander Master statement balance for the custody-vs-bank tie.

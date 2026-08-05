@@ -164,6 +164,18 @@ bank, never substituted for the lease universe. `custody_deposits` is the one
 mutable operational table (rows advance through stages); every write is still
 audit-logged.
 
+**Entering changes.** The spreadsheet is the *initial* bulk load only. After a
+deposit is in the system, new tenants are added and deposits advanced through
+their stages **directly on the Custody screen** — no spreadsheet round-trip.
+`custody_deposits` is the one mutable operational table, so this is allowed under
+two guardrails (migration `0006`): only **authenticated** users (the
+investigation access list) may write — the browser's anon key writes nothing, so
+real in-app editing requires the sign-in gate re-enabled — and **every write is
+captured in the append-only `audit_log` by a database trigger** (insert, update,
+delete, with before/after images and the acting user), whether it comes from the
+browser or the service-key CLI. Re-running `custody-import` on a refreshed export
+still works too; it upserts on the natural key.
+
 `custody-detect` runs six pure lifecycle detectors into the same triage queue:
 `master_account_float` (dollars pooled in Master past the aging threshold —
 the headline control), `deposit_not_sent_to_bank`, `subaccount_not_opened`,
@@ -185,6 +197,12 @@ list. The **service key never reaches the deployment** — the backfill and all
 ingest run locally on the CLI host. Files uploaded through the UI land in a
 private Storage bucket; the CLI pulls, hashes, and gates them. See `web/README.md`.
 
+The append-only financial tables stay CLI-only; the one table an authenticated
+user edits in the app is `custody_deposits` (operational, mutable), and every
+such edit is audit-logged by a database trigger (migration `0006`). Because that
+write path is `authenticated`-only, editing real custody data on the site
+requires the sign-in gate — removed for the current preview — to be turned back on.
+
 ## Migrations
 
     0001_init.sql   schema, append-only triggers, tie-out views
@@ -194,6 +212,8 @@ private Storage bucket; the CLI pulls, hashes, and gates them. See `web/README.m
     0004_ingest_txn.sql  atomic ingest RPC (all-or-nothing statement load)
     0005_custody.sql     Master + per-tenant subaccounts, custody_deposits,
                          master-account aging + custody summary views
+    0006_custody_edit.sql  in-app custody editing: authenticated write policies
+                         + append-only audit trigger on every custody change
 
 ## Status
 
