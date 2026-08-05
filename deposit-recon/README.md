@@ -51,6 +51,11 @@ wrong numbers that look right.
     # 3. independent lease universe (from lease files, NOT the books)
     npm run cli -- leases rentroll.csv --map leasemap.json
 
+    # 3b. operational custody tracker (the office's Master/subaccount control system)
+    npm run cli -- custody-import tracker.csv --map custodymap.json
+    npm run cli -- custody-detect                          # lifecycle detectors into triage
+    npm run cli -- custody-aging --master-balance <cents>  # Master-account aging + custody-vs-bank
+
     # 4. analysis
     npm run cli -- match                                   # rule-based proposals; a human decides
     npm run cli -- llm-match                               # LLM proposals for the unmatched (needs ANTHROPIC_API_KEY)
@@ -141,11 +146,39 @@ built independently from lease files: money that never arrived. Only the
 second one catches a deposit that was collected and never banked, which is
 the more common pattern.
 
+## Custody control (the office tracker, tied in)
+
+A colleague's operational tracker — a *Tenant Security Deposit Control System* —
+runs alongside this. The office banks with a Santander **Master** (pooled)
+account and opens a **per-tenant subaccount** for each deposit, tracking every
+deposit through its lifecycle: received → sent to bank → cleared → pooled in
+Master → allocated into a subaccount → (on move-out) returned by the bank →
+refunded to the tenant → closed. `custody-import` ingests that export into
+`custody_deposits` (migration `0005`) through a stable column map, exactly like
+leases.
+
+It is a custody **source**, not a second baseline. The tie-out keeps its power
+only because bank, sub-ledger, and lease files are independent — so custody rows
+are the office's *claims* about where each deposit is, reconciled **against** the
+bank, never substituted for the lease universe. `custody_deposits` is the one
+mutable operational table (rows advance through stages); every write is still
+audit-logged.
+
+`custody-detect` runs six pure lifecycle detectors into the same triage queue:
+`master_account_float` (dollars pooled in Master past the aging threshold —
+the headline control), `deposit_not_sent_to_bank`, `subaccount_not_opened`,
+`allocation_pending`, `funds_returned_not_refunded` (bank returned it, tenant
+never paid — the 14-day clock is running), and `vacated_subaccount_open`.
+`custody-aging` prints the Master-account aging report (every dollar still
+pooled, oldest first) plus the portfolio roll-up, and — given the Santander
+Master statement balance via `--master-balance` — reconciles the tracker's
+pooled claim against the bank (their disagreement is the finding).
+
 ## Review UI (`web/`)
 
-Next.js App Router, deployed on Vercel. Four screens — tie-out dashboard,
-quarantine queue, match approval, exception triage — plus direct-to-Storage
-upload. The browser carries **only** the anon key; every request is `anon` or
+Next.js App Router, deployed on Vercel. Five screens — tie-out dashboard,
+custody control (Master-account aging), quarantine queue, match approval,
+exception triage — plus direct-to-Storage upload. The browser carries **only** the anon key; every request is `anon` or
 `authenticated` and governed by RLS (migration `0003`). Unauthenticated users
 see nothing; the set of people who can sign in is the investigation access
 list. The **service key never reaches the deployment** — the backfill and all
@@ -158,6 +191,9 @@ private Storage bucket; the CLI pulls, hashes, and gates them. See `web/README.m
     0002_recon.sql  normalize_name(), deadline_notifications, open-deadline
                     and match-rate views
     0003_rls.sql    row-level security, security_invoker views, storage bucket
+    0004_ingest_txn.sql  atomic ingest RPC (all-or-nothing statement load)
+    0005_custody.sql     Master + per-tenant subaccounts, custody_deposits,
+                         master-account aging + custody summary views
 
 ## Status
 

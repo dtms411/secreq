@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "tsx test/run.ts && tsx test/math.ts && tsx test/parsers.ts && tsx test/csv.ts && tsx test/leases.ts && tsx test/match.ts && tsx test/exceptions.ts && tsx test/deadline.ts && tsx test/llm.ts && tsx test/report.ts && tsx test/scenario.ts && tsx test/backfill.ts",
+    "test": "tsx test/run.ts && tsx test/math.ts && tsx test/parsers.ts && tsx test/csv.ts && tsx test/leases.ts && tsx test/custody.ts && tsx test/match.ts && tsx test/exceptions.ts && tsx test/deadline.ts && tsx test/llm.ts && tsx test/report.ts && tsx test/scenario.ts && tsx test/backfill.ts",
     "cli": "tsx src/cli.ts"
   },
   "dependencies": {

@@ -11,6 +11,9 @@ import {
 } from './backfill.js';
 import { loadLeases } from './leases/load.js';
 import type { LeaseColumnMap } from './leases/parse.js';
+import { loadCustody } from './custody/load.js';
+import type { CustodyColumnMap } from './custody/parse.js';
+import { runCustodyDetect, custodyAging } from './custody/run.js';
 import { runMatching } from './match/run.js';
 import { runLlmMatching } from './llm/run.js';
 import { runDetectors } from './exceptions/run.js';
@@ -34,6 +37,9 @@ const usage = `
   quarantine <root>                          re-print the quarantine report
   continuity [--write]                       per-account gaps in the statement series
   leases <file.csv> --map <map.json>         load the independent lease universe
+  custody-import <file.csv> --map <map.json>   ingest the office custody tracker export
+  custody-detect [--dry] [--date YYYY-MM-DD]   run custody lifecycle detectors into triage
+  custody-aging [--date YYYY-MM-DD] [--master-balance <cents>]   master-account aging + summary
   match                                      propose bank<->ledger matches (human decides)
   llm-match                                  LLM proposes matches for the unmatched (human decides)
   exceptions [--dry]                         run all detectors into the triage queue
@@ -157,6 +163,25 @@ switch (cmd) {
     const [buildings, accounts] = args;
     if (!buildings || !accounts) { console.error(usage); process.exit(1); }
     await seed(buildings, accounts);
+    break;
+  }
+
+  case 'custody-import': {
+    const file = args[0];
+    const mapFile = flag('--map');
+    if (!file || !mapFile) { console.error(usage); process.exit(1); }
+    const map = JSON.parse(await readFile(mapFile, 'utf8')) as CustodyColumnMap;
+    const r = await loadCustody(file, map, flag('--source'));
+    console.log(`custody: ${r.inserted} inserted, ${r.updated} updated`);
+    if (r.unresolvedBuilding.length) console.log(`  ${r.unresolvedBuilding.length} row(s) had an unresolved building — not loaded`);
+    for (const p of r.problems) console.log(`  line ${p.line}: ${p.reason}`);
+    for (const n of r.notes) console.log(`  note (line ${n.line}): ${n.note}`);
+    break;
+  }
+  case 'custody-detect': await runCustodyDetect(!args.includes('--dry'), flag('--date') ?? today()); break;
+  case 'custody-aging': {
+    const mb = flag('--master-balance');
+    await custodyAging(flag('--date') ?? today(), mb ? Number(mb) : undefined);
     break;
   }
 
