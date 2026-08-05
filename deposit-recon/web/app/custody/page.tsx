@@ -44,8 +44,8 @@ export default function Custody() {
         setRecords((data as any[]).map((d) => ({ ...d, building: d.buildings?.name ?? d.building_id })) as CustodyRow[]);
         setDemo(false);
         supabase.from('buildings').select('id, name').order('name')
-          .then(({ data: b }) => setBuildings((b ?? []) as { id: string; name: string }[]));
-      });
+          .then(({ data: b }) => setBuildings((b ?? []) as { id: string; name: string }[]), () => {});
+      }, loadDemo);
   }
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, []);

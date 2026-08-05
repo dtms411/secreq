@@ -17,11 +17,12 @@ export default function TieOut() {
   const [demo, setDemo] = useState(false);
 
   useEffect(() => {
+    const useDemo = () => { setRows(demoTieout as Row[]); setDemo(true); };
     supabase.from('v_building_tieout').select('*').order('expected_variance_cents', { ascending: true })
       .then(({ data, error }) => {
-        if (error || !data || data.length === 0) { setRows(demoTieout as Row[]); setDemo(true); }
+        if (error || !data || data.length === 0) useDemo();
         else setRows(data as Row[]);
-      });
+      }, useDemo);
   }, []);
 
   // Reconcile over buildings that actually have a statement, so the tiles agree:

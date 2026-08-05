@@ -29,14 +29,14 @@ export default function Exceptions() {
   const load = () => {
     let q = supabase.from('exceptions').select('id, kind, severity, status, amount_cents, detail, opened_at');
     if (!showResolved) q = q.neq('status', 'resolved');
+    const useDemo = () => {
+      const dd = demoExceptions.filter((e) => showResolved || e.status !== 'resolved') as Ex[];
+      setRows(sortRows(dd)); setDemo(true);
+    };
     q.then(({ data, error }) => {
-      if (error || !data || data.length === 0) {
-        const dd = demoExceptions.filter((e) => showResolved || e.status !== 'resolved') as Ex[];
-        setRows(sortRows(dd)); setDemo(true);
-      } else {
-        setRows(sortRows(data as Ex[]));
-      }
-    });
+      if (error || !data || data.length === 0) useDemo();
+      else setRows(sortRows(data as Ex[]));
+    }, useDemo);
   };
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [showResolved]);

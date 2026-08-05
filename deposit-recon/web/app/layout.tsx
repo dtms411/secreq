@@ -1,11 +1,11 @@
 import './globals.css';
-import { Newsreader, IBM_Plex_Sans } from 'next/font/google';
+import { Manrope, Inter } from 'next/font/google';
 import { Nav } from '@/lib/Nav';
 
-// Editorial serif for display, a clean humanist sans for dense data. Loaded and
-// self-hosted by next/font — no runtime request to Google.
-const serif = Newsreader({ subsets: ['latin'], weight: ['400', '500', '600'], display: 'swap', variable: '--font-serif' });
-const sans = IBM_Plex_Sans({ subsets: ['latin'], weight: ['400', '500', '600'], display: 'swap', variable: '--font-sans' });
+// All sans-serif: Manrope for display (headings, figures, brand), Inter for the
+// dense UI + tabular data. Self-hosted by next/font — no runtime Google request.
+const display = Manrope({ subsets: ['latin'], weight: ['500', '600', '700', '800'], display: 'swap', variable: '--font-display' });
+const ui = Inter({ subsets: ['latin'], weight: ['400', '500', '600'], display: 'swap', variable: '--font-ui' });
 
 // NOTE: sign-in gate temporarily removed — the app renders straight to the
 // dashboard. Re-enable later by wrapping {children} in <AuthGate>.
@@ -13,13 +13,21 @@ export const metadata = { title: 'SecReq — Security Deposit Reconciliation', d
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${serif.variable} ${sans.variable}`}>
+    <html lang="en" className={`${display.variable} ${ui.variable}`}>
       <body>
         <div className="shell">
           <aside className="sidebar">
             <div className="brand">
-              SecReq
-              <small>Security Deposit Reconciliation</small>
+              <span className="brand-mark" aria-hidden="true">
+                <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+                  <rect width="26" height="26" rx="7" fill="#0F6E56" />
+                  <path d="M8 10h10M8 16h10" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </span>
+              <span className="brand-text">
+                SecReq
+                <small>Security Deposit Reconciliation</small>
+              </span>
             </div>
             <Nav />
             <div className="side-foot">

@@ -14,16 +14,18 @@ export default function Quarantine() {
   const [demo, setDemo] = useState(false);
 
   useEffect(() => {
+    const qDemo = () => { setQ(demoQuarantineStatements as Q[]); setDemo(true); };
+    const exDemo = () => { setEx(demoCriticalExceptions as Ex[]); setDemo(true); };
     supabase.from('v_quarantine').select('*').then(({ data, error }) => {
-      if (error || !data || data.length === 0) { setQ(demoQuarantineStatements as Q[]); setDemo(true); }
+      if (error || !data || data.length === 0) qDemo();
       else setQ(data as Q[]);
-    });
+    }, qDemo);
     supabase.from('exceptions').select('id, kind, severity, amount_cents, detail, opened_at')
       .in('severity', ['critical', 'high']).eq('status', 'open').order('severity')
       .then(({ data, error }) => {
-        if (error || !data || data.length === 0) { setEx(demoCriticalExceptions as Ex[]); setDemo(true); }
+        if (error || !data || data.length === 0) exDemo();
         else setEx(data as Ex[]);
-      });
+      }, exDemo);
   }, []);
 
   return (

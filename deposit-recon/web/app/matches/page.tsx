@@ -23,7 +23,7 @@ export default function Matches() {
       .then(({ data, error }) => {
         if (error || !data || data.length === 0) { setRows(demoMatches as unknown as M[]); setDemo(true); }
         else setRows(data as unknown as M[]);
-      });
+      }, () => { setRows(demoMatches as unknown as M[]); setDemo(true); });
 
   useEffect(() => { load(); }, []);
 
