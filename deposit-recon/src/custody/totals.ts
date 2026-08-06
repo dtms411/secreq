@@ -46,6 +46,34 @@ export function custodyTotals(records: CustodyRecord[], today: string, o: Custod
   return { totalReceivedCents, inMasterCents, inSubaccountsCents, refundPending, refundPendingCents, closedRecords, masterAgedOver30 };
 }
 
+export interface CustodyBalanceRecon {
+  bankStatedCents: number;        // Σ bank statement balances (where entered)
+  accountingExpectedCents: number; // Σ accounting "should-be" balances (where entered)
+  varianceCents: number;          // bank − accounting
+  comparedCount: number;          // records with BOTH balances entered
+  pendingCount: number;           // records missing one or both
+}
+
+/** Per-portfolio bank ↔ accounting reconciliation. Sums each side only where a
+ *  figure was entered, and reports the variance (bank − accounting) plus how
+ *  many records are fully comparable vs still missing a number. The whole point
+ *  of keeping the two independent: their disagreement is the finding. */
+export function custodyBalanceRecon(records: CustodyRecord[]): CustodyBalanceRecon {
+  let bankStatedCents = 0, accountingExpectedCents = 0, comparedCount = 0, pendingCount = 0;
+  for (const r of records) {
+    const hasBank = r.bankBalanceCents != null;
+    const hasAcct = r.accountingBalanceCents != null;
+    if (hasBank) bankStatedCents += r.bankBalanceCents as number;
+    if (hasAcct) accountingExpectedCents += r.accountingBalanceCents as number;
+    if (hasBank && hasAcct) comparedCount++; else pendingCount++;
+  }
+  return {
+    bankStatedCents, accountingExpectedCents,
+    varianceCents: bankStatedCents - accountingExpectedCents,
+    comparedCount, pendingCount,
+  };
+}
+
 export interface CustodyBankRecon {
   custodyMasterCents: number;   // what the tracker claims is pooled in Master
   bankMasterCents: number;      // the Santander Master statement balance

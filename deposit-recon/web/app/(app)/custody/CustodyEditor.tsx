@@ -24,6 +24,9 @@ export interface Draft {
   stage: Stage;
   responsible_employee: string;
   next_action: string;
+  bank_balance: string;        // dollars
+  accounting_balance: string;  // dollars
+  balance_as_of: string;
   vacate_date: string;
   bank_account_closed_on: string;
   funds_returned_on: string;
@@ -46,7 +49,8 @@ export function blankDraft(): Draft {
     building_id: '', unit: '', tenant_name: '', kind: 'initial', amount: '',
     received_on: '', sent_to_bank_on: '', bank_cleared_on: '', in_master: '',
     subaccount_last4: '', subaccount_opened_on: '', allocated_on: '', stage: 'received',
-    responsible_employee: '', next_action: '', vacate_date: '', bank_account_closed_on: '',
+    responsible_employee: '', next_action: '', bank_balance: '', accounting_balance: '', balance_as_of: '',
+    vacate_date: '', bank_account_closed_on: '',
     funds_returned_on: '', funds_returned: '', refunded_on: '', refunded: '', final_status: '',
   };
 }
@@ -59,6 +63,8 @@ export function draftFromRow(r: CustodyRow): Draft {
     in_master: centsToInput(r.in_master_cents),
     subaccount_last4: r.subaccount_last4 ?? '', subaccount_opened_on: r.subaccount_opened_on ?? '', allocated_on: r.allocated_on ?? '',
     stage: r.stage, responsible_employee: r.responsible_employee ?? '', next_action: r.next_action ?? '',
+    bank_balance: centsToInput(r.bank_balance_cents), accounting_balance: centsToInput(r.accounting_balance_cents),
+    balance_as_of: r.balance_as_of ?? '',
     vacate_date: r.vacate_date ?? '', bank_account_closed_on: r.bank_account_closed_on ?? '',
     funds_returned_on: r.funds_returned_on ?? '', funds_returned: centsToInput(r.funds_returned_cents),
     refunded_on: r.refunded_on ?? '', refunded: centsToInput(r.refunded_cents), final_status: r.final_status ?? '',
@@ -91,6 +97,12 @@ export function draftToColumns(t: Draft): ColumnResult {
   const refunded_cents = t.refunded.trim() ? dollarsToCents(t.refunded) : null;
   if (refunded_cents === null && t.refunded.trim()) return { ok: false, error: 'Refunded amount is not a valid figure.' };
 
+  // Bank / accounting balances: blank stays NULL ("not entered"), distinct from $0.
+  const bank_balance_cents = t.bank_balance.trim() ? dollarsToCents(t.bank_balance) : null;
+  if (bank_balance_cents === null && t.bank_balance.trim()) return { ok: false, error: 'Bank balance is not a valid figure.' };
+  const accounting_balance_cents = t.accounting_balance.trim() ? dollarsToCents(t.accounting_balance) : null;
+  if (accounting_balance_cents === null && t.accounting_balance.trim()) return { ok: false, error: 'Accounting balance is not a valid figure.' };
+
   return {
     ok: true,
     cols: {
@@ -99,6 +111,7 @@ export function draftToColumns(t: Draft): ColumnResult {
       received_on: d(t.received_on), sent_to_bank_on: d(t.sent_to_bank_on), bank_cleared_on: d(t.bank_cleared_on),
       subaccount_last4: d(t.subaccount_last4), subaccount_opened_on: d(t.subaccount_opened_on), allocated_on: d(t.allocated_on),
       stage: t.stage, responsible_employee: d(t.responsible_employee), next_action: d(t.next_action),
+      bank_balance_cents, accounting_balance_cents, balance_as_of: d(t.balance_as_of),
       vacate_date: d(t.vacate_date), bank_account_closed_on: d(t.bank_account_closed_on),
       funds_returned_on: d(t.funds_returned_on), funds_returned_cents,
       refunded_on: d(t.refunded_on), refunded_cents, final_status: d(t.final_status),
@@ -173,6 +186,11 @@ export function CustodyEditor({ draft, isNew, buildings, saving, error, onChange
         {Date_('allocated_on', 'Allocated to subaccount')}
         {Text('responsible_employee', 'Responsible')}
         {Text('next_action', 'Next action')}
+
+        <div className="section-label">Bank vs. accounting — the reconciliation</div>
+        {Text('bank_balance', 'Bank statement balance', { hint: 'what the bank says' })}
+        {Text('accounting_balance', 'Accounting expected', { hint: 'what the books say' })}
+        {Date_('balance_as_of', 'Balances as of')}
 
         <div className="section-label">Move-out &amp; disposition</div>
         {Date_('vacate_date', 'Vacate date')}

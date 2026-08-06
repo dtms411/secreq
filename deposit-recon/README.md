@@ -186,11 +186,29 @@ pooled, oldest first) plus the portfolio roll-up, and — given the Santander
 Master statement balance via `--master-balance` — reconciles the tracker's
 pooled claim against the bank (their disagreement is the finding).
 
+## Bank vs. accounting (per tenant)
+
+Each custody record carries two independently-entered balances: `bank_balance_`
+`cents` (what the tenant's subaccount shows on the bank statement) and
+`accounting_balance_cents` (what the books say should be there). The Custody
+screen shows the variance per tenant — worst shortfall first — and rolls it up
+per building and across the portfolio (`v_custody_balance_recon`, migration
+`0007`). Kept independent on purpose: the accounting system is the thing under
+review, so a per-tenant bank-vs-books disagreement is exactly what this surfaces.
+Both figures are entered on the site (or carried in the tracker import) and every
+edit is audit-logged.
+
 ## Review UI (`web/`)
 
-Next.js App Router, deployed on Vercel. Five screens — tie-out dashboard,
-custody control (Master-account aging), quarantine queue, match approval,
-exception triage — plus direct-to-Storage upload. The browser carries **only** the anon key; every request is `anon` or
+Next.js App Router, deployed on Vercel. A public **splash** (how-it-works) and a
+**sign-in** page front the app; everything else is gated by `AuthGate` — a real
+Supabase session (the investigation access list, provisioned invite-only in
+Supabase Auth) or an explicit **demo** mode that shows only synthetic data.
+Behind the gate: tie-out dashboard, custody control (bank-vs-accounting,
+Master-account aging, editable records), quarantine queue, match approval,
+exception triage, and a drag-and-drop **upload** that streams files straight to
+the private Storage bucket (multiple files, type/size validation, per-file
+progress). The browser carries **only** the anon key; every request is `anon` or
 `authenticated` and governed by RLS (migration `0003`). Unauthenticated users
 see nothing; the set of people who can sign in is the investigation access
 list. The **service key never reaches the deployment** — the backfill and all
@@ -214,6 +232,8 @@ requires the sign-in gate — removed for the current preview — to be turned b
                          master-account aging + custody summary views
     0006_custody_edit.sql  in-app custody editing: authenticated write policies
                          + append-only audit trigger on every custody change
+    0007_custody_balances.sql  per-tenant bank_balance / accounting_balance +
+                         the bank-vs-accounting reconciliation view
 
 ## Status
 

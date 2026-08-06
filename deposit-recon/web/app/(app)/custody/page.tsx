@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { formatCents } from '@/lib/format';
 import { DemoBanner, demoCustodyRecords, demoBuildings, demoMasterBankBalanceCents } from '@/lib/demo';
 import {
-  STAGES, AGE_LIMIT, dollarsToCents, rollup, agingFrom, type CustodyRow, type Stage,
+  STAGES, AGE_LIMIT, dollarsToCents, rollup, agingFrom, reconRows, type CustodyRow, type Stage,
 } from '@/lib/custody';
 import { CustodyEditor, type Draft, blankDraft, draftFromRow, draftToColumns } from './CustodyEditor';
 
@@ -52,6 +52,7 @@ export default function Custody() {
 
   const view = rollup(records, today);
   const aging = agingFrom(records, today);
+  const recon = reconRows(records);
   const masterVariance = masterBank == null ? null : masterBank - view.inMaster;
 
   function startAdd() { setErr(null); setEditingId(null); setEditing(blankDraft()); }
@@ -137,6 +138,66 @@ export default function Custody() {
           </table>
         </div>
       )}
+
+      <div className="card">
+        <div className="card-title">Bank vs. accounting — per tenant</div>
+        <div className="card-sub">
+          What the <em>bank statement</em> shows for each tenant&rsquo;s subaccount against what your
+          <em> accounting system</em> says should be there. Kept independent on purpose — the difference is the
+          finding. Enter both on a record (Edit) to compare it. Worst shortfall first.
+        </div>
+
+        <div className="stats" style={{ gridTemplateColumns: 'repeat(3, 1fr)', marginBottom: 18 }}>
+          <div className="stat">
+            <div className="stat-label">Bank stated</div>
+            <div className="stat-num">{formatCents(view.bankStated)}</div>
+            <div className="stat-sub">{view.compared} tenant{view.compared === 1 ? '' : 's'} compared</div>
+          </div>
+          <div className="stat">
+            <div className="stat-label">Accounting expected</div>
+            <div className="stat-num">{formatCents(view.accountingExpected)}</div>
+            <div className="stat-sub">{view.pending} still missing a figure</div>
+          </div>
+          <div className="stat">
+            <div className="stat-label">Variance (bank − books)</div>
+            <div className={'stat-num ' + (view.balanceVariance < 0 ? 'neg' : view.balanceVariance > 0 ? 'pos' : '')}>{formatCents(view.balanceVariance)}</div>
+            <div className="stat-sub">{view.balanceVariance < 0 ? 'bank holds less than the books' : view.balanceVariance > 0 ? 'bank holds more than the books' : 'in agreement'}</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Building</th><th>Unit</th><th>Tenant</th>
+              <th className="num">Bank says</th><th className="num">Books say</th><th className="num">Variance</th><th>As of</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {recon.length === 0 && <tr><td colSpan={8} className="muted">No balances entered yet. Open a record and fill in the bank and accounting figures to compare.</td></tr>}
+            {recon.map((r) => (
+              <tr key={r.id}>
+                <td className="muted">{r.building ?? '—'}</td>
+                <td>{r.unit}</td>
+                <td className="name">{r.tenant_name}</td>
+                <td className="num">{formatCents(r.bank)}</td>
+                <td className="num">{formatCents(r.accounting)}</td>
+                <td className={'num' + ((r.variance ?? 0) < 0 ? ' neg' : '')}>{r.variance == null ? <span className="muted">needs both</span> : formatCents(r.variance)}</td>
+                <td className="muted">{r.as_of ?? '—'}</td>
+                <td>{(r.variance ?? 0) < 0 ? <span className="flag">!!</span> : ''}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colSpan={3}>Portfolio</th>
+              <th className="num">{formatCents(view.bankStated)}</th>
+              <th className="num">{formatCents(view.accountingExpected)}</th>
+              <th className={'num' + (view.balanceVariance < 0 ? ' neg' : '')}>{formatCents(view.balanceVariance)}</th>
+              <th colSpan={2} />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
 
       <div className="card">
         <div className="card-title">Master-account aging</div>

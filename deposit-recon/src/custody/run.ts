@@ -3,7 +3,7 @@ import { formatCents } from '../parsers/types.js';
 import {
   runCustodyDetectors, DEFAULT_CUSTODY_OPTS, type CustodyOptions, type CustodyFinding,
 } from './detectors.js';
-import { custodyTotals, reconcileCustodyToBank } from './totals.js';
+import { custodyTotals, reconcileCustodyToBank, custodyBalanceRecon } from './totals.js';
 import type { CustodyRecord, CustodyStage } from './parse.js';
 
 // DB-backed custody runner. Loads custody_deposits, runs the pure lifecycle
@@ -26,6 +26,9 @@ function toRecord(d: any): CustodyRecord {
     inMasterCents: Number(d.in_master_cents ?? 0),
     subaccountLast4: d.subaccount_last4, subaccountOpenedOn: d.subaccount_opened_on, allocatedOn: d.allocated_on,
     stage: d.stage as CustodyStage, responsibleEmployee: d.responsible_employee, nextAction: d.next_action,
+    bankBalanceCents: d.bank_balance_cents == null ? null : Number(d.bank_balance_cents),
+    accountingBalanceCents: d.accounting_balance_cents == null ? null : Number(d.accounting_balance_cents),
+    balanceAsOf: d.balance_as_of,
     vacateDate: d.vacate_date, bankAccountClosedOn: d.bank_account_closed_on,
     fundsReturnedOn: d.funds_returned_on, fundsReturnedCents: d.funds_returned_cents == null ? null : Number(d.funds_returned_cents),
     refundedOn: d.refunded_on, refundedCents: d.refunded_cents == null ? null : Number(d.refunded_cents),
@@ -43,8 +46,8 @@ async function loadCustodyRecords(): Promise<CustodyRecord[]> {
 
 // Pure roll-ups (custodyTotals, reconcileCustodyToBank) live in ./totals.js so
 // they can be unit-tested without a database; re-exported for callers.
-export { custodyTotals, reconcileCustodyToBank } from './totals.js';
-export type { CustodyTotals, CustodyBankRecon } from './totals.js';
+export { custodyTotals, reconcileCustodyToBank, custodyBalanceRecon } from './totals.js';
+export type { CustodyTotals, CustodyBankRecon, CustodyBalanceRecon } from './totals.js';
 
 // -------------------------------------------------- detect (write to exceptions)
 
@@ -118,6 +121,15 @@ export async function custodyAging(today: string, bankMasterCents?: number, o: C
     console.log(`  tracker claims pooled     ${formatCents(rec.custodyMasterCents)}`);
     console.log(`  Santander Master balance  ${formatCents(rec.bankMasterCents)}`);
     console.log(`  variance (bank − claim)   ${formatCents(rec.varianceCents)}`);
+  }
+
+  const br = custodyBalanceRecon(records);
+  if (br.comparedCount || br.bankStatedCents || br.accountingExpectedCents) {
+    console.log('\nBank vs accounting — per-tenant balances');
+    console.log(`  bank stated (Σ)           ${formatCents(br.bankStatedCents)}`);
+    console.log(`  accounting expected (Σ)   ${formatCents(br.accountingExpectedCents)}`);
+    console.log(`  variance (bank − books)   ${formatCents(br.varianceCents)}`);
+    console.log(`  compared ${br.comparedCount}   pending ${br.pendingCount}`);
   }
 
   const aging = records

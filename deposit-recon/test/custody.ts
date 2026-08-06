@@ -3,7 +3,7 @@ import {
   masterAccountFloat, depositNotSentToBank, subaccountNotOpened, allocationPending,
   fundsReturnedNotRefunded, vacatedSubaccountOpen, runCustodyDetectors, DEFAULT_CUSTODY_OPTS,
 } from '../src/custody/detectors.js';
-import { custodyTotals, reconcileCustodyToBank } from '../src/custody/totals.js';
+import { custodyTotals, reconcileCustodyToBank, custodyBalanceRecon } from '../src/custody/totals.js';
 import { makeChecker } from './_assert.js';
 
 const { check, done } = makeChecker();
@@ -144,6 +144,26 @@ console.log('\ncustodyTotals + reconcileCustodyToBank');
   const r = reconcileCustodyToBank(records, 200000);
   check('custody Master claim summed', r.custodyMasterCents === 250000, String(r.custodyMasterCents));
   check('variance = bank − claim', r.varianceCents === -50000 && r.varianceCents === r.bankMasterCents - r.custodyMasterCents, String(r.varianceCents));
+}
+
+// -------------------------------------------------- bank vs accounting recon
+console.log('\ncustodyBalanceRecon — per-tenant bank vs accounting');
+{
+  const records = [
+    rec({ bankBalanceCents: 250000, accountingBalanceCents: 250000 }),                 // agrees
+    rec({ unit: '2B', bankBalanceCents: 260000, accountingBalanceCents: 265000 }),     // bank short $50
+    rec({ unit: '3C', bankBalanceCents: 180000, accountingBalanceCents: null }),       // only bank entered
+    rec({ unit: '4D', bankBalanceCents: null, accountingBalanceCents: 90000 }),        // only books entered
+    rec({ unit: '5E' }),                                                               // neither
+  ];
+  const r = custodyBalanceRecon(records);
+  check('bank stated sums entered figures', r.bankStatedCents === 690000, String(r.bankStatedCents));
+  check('accounting expected sums entered figures', r.accountingExpectedCents === 605000, String(r.accountingExpectedCents));
+  check('variance = bank − accounting', r.varianceCents === 85000 && r.varianceCents === r.bankStatedCents - r.accountingExpectedCents);
+  check('only rows with BOTH are counted compared', r.comparedCount === 2, String(r.comparedCount));
+  check('rows missing a figure are pending', r.pendingCount === 3, String(r.pendingCount));
+  const empty = custodyBalanceRecon([rec({})]);
+  check('no balances → all zero, one pending', empty.bankStatedCents === 0 && empty.varianceCents === 0 && empty.pendingCount === 1);
 }
 
 // -------------------------------------------------- runAll dispatch

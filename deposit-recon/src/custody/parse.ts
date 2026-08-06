@@ -51,6 +51,11 @@ export interface CustodyRecord {
   responsibleEmployee?: string | null;
   nextAction?: string | null;
 
+  // per-tenant bank ↔ accounting reconciliation (independently entered)
+  bankBalanceCents?: number | null;        // what the bank statement shows
+  accountingBalanceCents?: number | null;  // what the books say should be there
+  balanceAsOf?: string | null;
+
   vacateDate?: string | null;
   bankAccountClosedOn?: string | null;
   fundsReturnedOn?: string | null;
@@ -83,6 +88,9 @@ export interface CustodyColumnMap {
   stage?: string;
   responsibleEmployee?: string;
   nextAction?: string;
+  bankBalance?: string;
+  accountingBalance?: string;
+  balanceAsOf?: string;
   vacateDate?: string;
   bankAccountClosedOn?: string;
   fundsReturnedOn?: string;
@@ -109,6 +117,14 @@ function optDate(raw: string | undefined): string | undefined {
 function optCents(raw: string | undefined): number {
   const t = (raw ?? '').trim();
   if (!t || /^(n\/?a|none|-|—)$/i.test(t)) return 0;
+  return toCents(t);
+}
+
+/** Money column that is absent when blank (not zero) — for the bank / accounting
+ *  balances, where "not entered yet" must stay distinct from "$0.00". */
+function optCentsOrNull(raw: string | undefined): number | null {
+  const t = (raw ?? '').trim();
+  if (!t || /^(n\/?a|none|-|—|pending|tbd)$/i.test(t)) return null;
   return toCents(t);
 }
 
@@ -174,6 +190,9 @@ export function parseCustody(text: string, cm: CustodyColumnMap): CustodyParseRe
         stage: normStage(get(cm.stage)),
         responsibleEmployee: get(cm.responsibleEmployee) || undefined,
         nextAction: get(cm.nextAction) || undefined,
+        bankBalanceCents: cm.bankBalance ? optCentsOrNull(get(cm.bankBalance)) : undefined,
+        accountingBalanceCents: cm.accountingBalance ? optCentsOrNull(get(cm.accountingBalance)) : undefined,
+        balanceAsOf: optDate(get(cm.balanceAsOf)),
         vacateDate: optDate(get(cm.vacateDate)),
         bankAccountClosedOn: optDate(get(cm.bankAccountClosedOn)),
         fundsReturnedOn: optDate(get(cm.fundsReturnedOn)),

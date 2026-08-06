@@ -1,105 +1,79 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { formatCents } from '@/lib/format';
-import { DemoBanner, demoTieout } from '@/lib/demo';
+import { useRouter } from 'next/navigation';
+import { enterDemo } from '@/lib/auth';
 
-interface Row {
-  building_id: string; name: string; unit_count: number; interest_required: boolean;
-  as_of: string | null; checksum_ok: boolean | null;
-  bank_cents: number | null; ledger_cents: number | null; expected_cents: number | null;
-  ledger_variance_cents: number | null; expected_variance_cents: number | null;
-}
+// Public splash + how-it-works. Two ways in: sign in (the investigation access
+// list) or explore the synthetic demo. No real data is shown without a session.
 
-export default function TieOut() {
-  const [rows, setRows] = useState<Row[]>([]);
-  const [demo, setDemo] = useState(false);
+const STEPS = [
+  { n: 1, t: 'Upload the source documents', d: 'Drag bank statements, rent rolls, and your custody tracker export into the private evidence bucket. Nothing is trusted until it clears the checksum gate.' },
+  { n: 2, t: 'Build three independent records', d: 'What the bank says, what your books say, and what the leases independently say should be there. Their independence is what makes the tie-out mean something.' },
+  { n: 3, t: 'Track each deposit’s custody', d: 'Every tenant deposit through its whole life — received, pooled in the Santander Master, moved to the tenant’s subaccount, returned, refunded, closed.' },
+  { n: 4, t: 'Reconcile & compare', d: 'Bank vs. accounting per tenant, escrow held vs. the lease universe per building, and the Master-account aging — variances surfaced, not buried.' },
+  { n: 5, t: 'Triage what’s wrong', d: 'Eighteen detectors raise findings into one queue, and the 14-day statutory refund clock runs daily so a deadline is never missed.' },
+];
 
-  useEffect(() => {
-    const useDemo = () => { setRows(demoTieout as Row[]); setDemo(true); };
-    supabase.from('v_building_tieout').select('*').order('expected_variance_cents', { ascending: true })
-      .then(({ data, error }) => {
-        if (error || !data || data.length === 0) useDemo();
-        else setRows(data as Row[]);
-      }, useDemo);
-  }, []);
-
-  // Reconcile over buildings that actually have a statement, so the tiles agree:
-  // Escrow held − Lease universe === Expected variance. A no-statement building
-  // has an unknown bank balance and no defined variance; counting its expected
-  // in the universe but not its (null) bank would make the tiles fail to add up.
-  const reconciled = rows.filter((r) => r.bank_cents != null);
-  const bank = reconciled.reduce((a, r) => a + (r.bank_cents ?? 0), 0);
-  const universe = reconciled.reduce((a, r) => a + (r.expected_cents ?? 0), 0);
-  const variance = reconciled.reduce((a, r) => a + (r.expected_variance_cents ?? 0), 0);
-  const noStatement = rows.length - reconciled.length;
+export default function Splash() {
+  const router = useRouter();
+  function demo() { enterDemo(); router.push('/dashboard'); }
 
   return (
-    <>
-      <h1 className="page-title">Tie-out</h1>
-      <p className="page-sub">
-        Escrow balances against the independently-built lease universe. A negative variance means the trust
-        account holds <em>less</em> than the leases imply — money that never arrived.
-      </p>
-      {demo && <DemoBanner />}
+    <div className="splash">
+      <header className="splash-top">
+        <div className="brand">
+          <span className="brand-mark" aria-hidden="true">
+            <svg width="30" height="30" viewBox="0 0 26 26" fill="none">
+              <rect width="26" height="26" rx="7" fill="#0F6E56" />
+              <path d="M8 10h10M8 16h10" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </span>
+          <span className="brand-text splash-brand">SecReq<small>Security Deposit Reconciliation</small></span>
+        </div>
+        <a className="btn" href="/login">Sign in</a>
+      </header>
 
-      <div className="stats">
-        <div className="stat">
-          <div className="stat-label">Buildings</div>
-          <div className="stat-num">{rows.length}</div>
-          <div className="stat-sub">{noStatement ? `${reconciled.length} reconciled · ${noStatement} no statement` : 'escrow accounts reconciled'}</div>
+      <section className="hero">
+        <div className="hero-kicker">Forensic reconciliation · under counsel</div>
+        <h1 className="hero-title">Every tenant security deposit,<br />tied out to the cent.</h1>
+        <p className="hero-lede">
+          SecReq reconciles what the <strong>bank</strong> holds against what your <strong>books</strong> say and
+          what the <strong>leases</strong> independently require — deposit by deposit, building by building, across
+          years of statements. Money that was collected and never banked, refunded to the wrong payee, or left
+          pooled in the Master account has nowhere to hide.
+        </p>
+        <div className="hero-cta">
+          <a className="btn btn-primary btn-lg" href="/login">Sign in</a>
+          <button className="btn btn-lg" onClick={demo}>Explore the demo →</button>
         </div>
-        <div className="stat">
-          <div className="stat-label">Escrow held</div>
-          <div className="stat-num">{formatCents(bank)}</div>
-          <div className="stat-sub">latest statement balances</div>
-        </div>
-        <div className="stat">
-          <div className="stat-label">Lease universe</div>
-          <div className="stat-num">{formatCents(universe)}</div>
-          <div className="stat-sub">deposits owed per leases</div>
-        </div>
-        <div className="stat">
-          <div className="stat-label">Expected variance</div>
-          <div className={'stat-num ' + (variance < 0 ? 'neg' : variance > 0 ? 'pos' : '')}>{formatCents(variance)}</div>
-          <div className="stat-sub">{variance < 0 ? 'shortfall vs. lease universe' : 'bank vs. lease universe'}</div>
-        </div>
-      </div>
+        <div className="hero-note">The demo shows synthetic data only. Real reconciliation data requires a sign-in on the investigation access list.</div>
+      </section>
 
-      <div className="card">
-        <div className="card-title">By building</div>
-        <div className="card-sub">
-          <span className="flag">!!</span> = latest statement failed the checksum gate.
-          {noStatement > 0 && ` ${noStatement} building${noStatement === 1 ? '' : 's'} without a statement are shown but excluded from portfolio totals.`}
+      <section className="how">
+        <div className="how-head">How it works</div>
+        <div className="steps">
+          {STEPS.map((s) => (
+            <div className="step" key={s.n}>
+              <div className="step-n">{s.n}</div>
+              <div>
+                <div className="step-t">{s.t}</div>
+                <div className="step-d">{s.d}</div>
+              </div>
+            </div>
+          ))}
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Building</th><th>As of</th>
-              <th className="num">Bank</th><th className="num">Ledger</th><th className="num">Expected</th>
-              <th className="num">Ledger var.</th><th className="num">Expected var.</th><th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.building_id}>
-                <td className="name">{r.name}</td>
-                <td className="muted">{r.as_of ?? 'no statement'}</td>
-                <td className="num">{formatCents(r.bank_cents)}</td>
-                <td className="num">{formatCents(r.ledger_cents)}</td>
-                <td className="num">{formatCents(r.expected_cents)}</td>
-                <td className={'num' + ((r.ledger_variance_cents ?? 0) < 0 ? ' neg' : '')}>{formatCents(r.ledger_variance_cents)}</td>
-                <td className={'num' + ((r.expected_variance_cents ?? 0) < 0 ? ' neg' : '')}>{formatCents(r.expected_variance_cents)}</td>
-                <td>{r.checksum_ok === false ? <span className="flag">!!</span> : ''}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr><th colSpan={6}>Portfolio expected variance</th><th className={'num' + (variance < 0 ? ' neg' : '')}>{formatCents(variance)}</th><th /></tr>
-          </tfoot>
-        </table>
-      </div>
-    </>
+      </section>
+
+      <section className="principles">
+        <div className="principle"><div className="principle-t">Integer cents, always</div><div className="principle-d">No floating-point money anywhere in the pipeline — every figure is exact.</div></div>
+        <div className="principle"><div className="principle-t">Nothing enters unbalanced</div><div className="principle-d">Opening + transactions must equal closing to the cent, or the statement is quarantined.</div></div>
+        <div className="principle"><div className="principle-t">Full provenance</div><div className="principle-d">Every number traces to a document, page, and line — and every edit is audit-logged.</div></div>
+        <div className="principle"><div className="principle-t">The model proposes, a human posts</div><div className="principle-d">Automated matches and suggestions are proposals; only a person commits them.</div></div>
+      </section>
+
+      <footer className="splash-foot">
+        SecReq · Trust-fund reconciliation under counsel · GOL §7-103 / §7-107 / §7-108
+      </footer>
+    </div>
   );
 }

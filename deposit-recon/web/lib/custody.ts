@@ -32,6 +32,9 @@ export interface CustodyRow {
   stage: Stage;
   responsible_employee: string | null;
   next_action: string | null;
+  bank_balance_cents: number | null;
+  accounting_balance_cents: number | null;
+  balance_as_of: string | null;
   vacate_date: string | null;
   bank_account_closed_on: string | null;
   funds_returned_on: string | null;
@@ -72,11 +75,14 @@ function heldInSub(r: CustodyRow): boolean {
 export interface Rollup {
   received: number; inMaster: number; inSub: number;
   refundPending: number; agedCount: number; buildings: number;
+  bankStated: number; accountingExpected: number; balanceVariance: number;
+  compared: number; pending: number;
 }
 
 /** The dashboard header, computed from records — matches src/custody/totals.ts. */
 export function rollup(records: CustodyRow[], today: string): Rollup {
   let received = 0, inMaster = 0, inSub = 0, refundPending = 0, agedCount = 0;
+  let bankStated = 0, accountingExpected = 0, compared = 0, pending = 0;
   const b = new Set<string>();
   for (const r of records) {
     received += r.amount_cents;
@@ -87,8 +93,37 @@ export function rollup(records: CustodyRow[], today: string): Rollup {
     const age = ageDays(since, today);
     if (r.in_master_cents > 0 && age != null && age > AGE_LIMIT) agedCount++;
     if (r.building_id) b.add(r.building_id);
+
+    const hasBank = r.bank_balance_cents != null;
+    const hasAcct = r.accounting_balance_cents != null;
+    if (hasBank) bankStated += r.bank_balance_cents as number;
+    if (hasAcct) accountingExpected += r.accounting_balance_cents as number;
+    if (hasBank && hasAcct) compared++; else pending++;
   }
-  return { received, inMaster, inSub, refundPending, agedCount, buildings: b.size };
+  return {
+    received, inMaster, inSub, refundPending, agedCount, buildings: b.size,
+    bankStated, accountingExpected, balanceVariance: bankStated - accountingExpected, compared, pending,
+  };
+}
+
+export interface ReconRow {
+  id: string; building?: string | null; unit: string; tenant_name: string;
+  bank: number | null; accounting: number | null; variance: number | null; as_of: string | null;
+}
+
+/** Per-tenant bank vs accounting rows — only where at least one figure exists,
+ *  so the comparison table is not padded with un-entered records. */
+export function reconRows(records: CustodyRow[]): ReconRow[] {
+  return records
+    .filter(r => r.bank_balance_cents != null || r.accounting_balance_cents != null)
+    .map(r => ({
+      id: r.id, building: r.building, unit: r.unit, tenant_name: r.tenant_name,
+      bank: r.bank_balance_cents, accounting: r.accounting_balance_cents,
+      variance: r.bank_balance_cents != null && r.accounting_balance_cents != null
+        ? r.bank_balance_cents - r.accounting_balance_cents : null,
+      as_of: r.balance_as_of,
+    }))
+    .sort((a, b) => (a.variance ?? 1e18) - (b.variance ?? 1e18)); // worst shortfall first
 }
 
 export interface AgingRow {
