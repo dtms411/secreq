@@ -1,0 +1,4 @@
+# Python deps for the OCR extractor. System packages also required:
+#   poppler-utils  tesseract-ocr  tesseract-ocr-osd
+# (Debian/Ubuntu: apt-get install poppler-utils tesseract-ocr tesseract-ocr-osd)
+pillow>=10
