@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, onAuthedLoad } from '@/lib/supabase';
 import { formatCents, severityStyle } from '@/lib/format';
 import { DemoBanner, demoExceptions } from '@/lib/demo';
 
@@ -39,7 +39,7 @@ export default function Exceptions() {
     }, useDemo);
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [showResolved]);
+  useEffect(() => onAuthedLoad(load), [showResolved]);
 
   async function setStatus(id: string, status: string) {
     if (demo) {

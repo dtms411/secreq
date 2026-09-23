@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, onAuthedLoad } from '@/lib/supabase';
 import { formatCents } from '@/lib/format';
 import { DemoBanner, demoMatches } from '@/lib/demo';
 
@@ -25,7 +25,7 @@ export default function Matches() {
         else setRows(data as unknown as M[]);
       }, () => { setRows(demoMatches as unknown as M[]); setDemo(true); });
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => onAuthedLoad(load), []);
 
   async function approve(id: string) {
     if (demo) { setRows((r) => r.filter((m) => m.id !== id)); return; }

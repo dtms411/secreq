@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, onAuthedLoad } from '@/lib/supabase';
 import { formatCents } from '@/lib/format';
 import { DemoBanner, demoTieout } from '@/lib/demo';
 
@@ -16,14 +16,14 @@ export default function TieOut() {
   const [rows, setRows] = useState<Row[]>([]);
   const [demo, setDemo] = useState(false);
 
-  useEffect(() => {
+  useEffect(() => onAuthedLoad(() => {
     const useDemo = () => { setRows(demoTieout as Row[]); setDemo(true); };
     supabase.from('v_building_tieout').select('*').order('expected_variance_cents', { ascending: true })
       .then(({ data, error }) => {
         if (error || !data || data.length === 0) useDemo();
-        else setRows(data as Row[]);
+        else { setRows(data as Row[]); setDemo(false); }
       }, useDemo);
-  }, []);
+  }), []);
 
   // Reconcile over buildings that actually have a statement, so the tiles agree:
   // Escrow held − Lease universe === Expected variance. A no-statement building

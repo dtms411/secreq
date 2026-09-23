@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, onAuthedLoad } from '@/lib/supabase';
 import { formatCents, severityStyle } from '@/lib/format';
 import { DemoBanner, demoQuarantineStatements, demoCriticalExceptions } from '@/lib/demo';
 
@@ -13,12 +13,12 @@ export default function Quarantine() {
   const [ex, setEx] = useState<Ex[]>([]);
   const [demo, setDemo] = useState(false);
 
-  useEffect(() => {
+  useEffect(() => onAuthedLoad(() => {
     const qDemo = () => { setQ(demoQuarantineStatements as Q[]); setDemo(true); };
     const exDemo = () => { setEx(demoCriticalExceptions as Ex[]); setDemo(true); };
     supabase.from('v_quarantine').select('*').then(({ data, error }) => {
       if (error || !data || data.length === 0) qDemo();
-      else setQ(data as Q[]);
+      else { setQ(data as Q[]); setDemo(false); }
     }, qDemo);
     supabase.from('exceptions').select('id, kind, severity, amount_cents, detail, opened_at')
       .in('severity', ['critical', 'high']).eq('status', 'open').order('severity')
@@ -26,7 +26,7 @@ export default function Quarantine() {
         if (error || !data || data.length === 0) exDemo();
         else setEx(data as Ex[]);
       }, exDemo);
-  }, []);
+  }), []);
 
   return (
     <>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, onAuthedLoad } from '@/lib/supabase';
 import { formatCents } from '@/lib/format';
 import { DemoBanner, demoCustodyRecords, demoBuildings, demoMasterBankBalanceCents } from '@/lib/demo';
 import {
@@ -48,7 +48,7 @@ export default function Custody() {
       }, loadDemo);
   }
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => onAuthedLoad(load), []);
 
   const view = rollup(records, today);
   const aging = agingFrom(records, today);
