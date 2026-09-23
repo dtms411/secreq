@@ -94,23 +94,70 @@ BUILDINGS = [
 _DIGITS = [(b, re.sub(r"\D", "", b)) for b in BUILDINGS]
 
 # Address-less entities → building(s). Filled in as the office provides the list.
-ENTITY_OVERRIDES: dict[str, list[str]] = {
-    # "JPS 050 REALTY LLC": ["<building name>"],
-}
+# Seeded from ocr/entitymap.json when present, so the office can maintain the
+# entity→building list without editing code (e.g. JPS 050 REALTY, C A S LLC).
+ENTITY_OVERRIDES: dict[str, list[str]] = {}
+
+
+def _load_entity_overrides() -> None:
+    import os
+    path = os.path.join(os.path.dirname(__file__), "entitymap.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except FileNotFoundError:
+        return
+    except Exception as e:  # a malformed map must be loud, not silently ignored
+        print(f"warning: could not read {path}: {e}", file=sys.stderr)
+        return
+    for k, v in data.items():
+        if isinstance(v, str):
+            v = [v]
+        ENTITY_OVERRIDES[str(k)] = list(v)
+
+
+_load_entity_overrides()
 
 
 def match_buildings(label: str) -> list[str]:
     """Best-effort building match from an entity name or in-statement building
     label. Matches on the digit stream so compressed forms resolve
-    ('10920 71ST' → '109-20 71st Road', '5501/8760' → both buildings)."""
+    ('10920 71ST' → '109-20 71st Road', '5501/8760' → both buildings, and the
+    hyphenated Queens form '70-11 108TH ST' → '70-11 108th Street').
+
+    Strategy, strongest first:
+      1. entity override (address-less names the office maps by hand)
+      2. exact full-stream: the label's whole digit run equals a building's
+         (handles hyphen-split addresses the per-run scan would miss)
+      3. per-run prefix: each 3+ digit run prefixes a building's digits
+         (handles compressed and slash-separated multi-building labels)
+      4. full-stream prefix: the label's whole digit run prefixes a building's
+    """
     key = label.strip().upper()
     for k, v in ENTITY_OVERRIDES.items():
         if k.upper() in key:
             return v
+
+    label_digits = re.sub(r"\D", "", label)
+
+    # 2. exact whole-stream match is unambiguous — return it alone.
+    exact = [name for name, dig in _DIGITS if dig and dig == label_digits]
+    if exact:
+        return exact
+
+    # 3. per-run prefix (compressed forms, and '/'-separated multiple buildings).
     hits: list[str] = []
     for run in re.findall(r"\d{3,}", label):
         for name, dig in _DIGITS:
             if dig.startswith(run) and name not in hits:
+                hits.append(name)
+    if hits:
+        return hits
+
+    # 4. whole-stream prefix (a single hyphen-split address, e.g. 70-11 108...).
+    if label_digits:
+        for name, dig in _DIGITS:
+            if dig and label_digits.startswith(dig) and name not in hits:
                 hits.append(name)
     return hits
 
@@ -309,17 +356,34 @@ def parse_apple(pages):
                              "balance_cents": to_cents(rm[3]),
                              "building_label": cur_building,
                              "buildings": match_buildings(cur_building or "")})
-        grand = amount_after(text, r"Landlord Totals For All Buildings", within=400) \
-            or amount_after(text, r"Security Dep\.")
+        # The landlord/agent detail prints TWO grand totals that differ by
+        # sub-cent rounding across columns: "Ledger Balance" and "Security Dep."
+        # (e.g. 213,598.96 vs 213,598.95). A row read from the Balance column ties
+        # to the first; from the Security-Dep column, to the second. Capture both
+        # so the gate can tie to whichever column the balances were read from —
+        # still an exact cent tie to a printed total, never a tolerance.
+        tail = ""
+        tm = re.search(r"Landlord Totals For All Buildings", text, re.I)
+        if tm:
+            tail = text[tm.end(): tm.end() + 400]
+        totals = []
+        for c in moneys(tail):
+            if c is not None and c not in totals:
+                totals.append(c)
+        grand = totals[0] if totals else amount_after(text, r"Security Dep\.")
+        grand_alt = totals[1] if len(totals) > 1 else None
         sub_total = sum(s["balance_cents"] or 0 for s in subs)
+        ties = (grand is not None and sub_total == grand) or \
+               (grand_alt is not None and sub_total == grand_alt)
         return {
             "bank": "apple", "kind": "landlord_detail",
             "master_account": acct.group(1) if acct else None,
             "entity_name": find_entity(text),
             "buildings": sorted({b for s in subs for b in s["buildings"]}),
             "subaccounts": subs, "subaccount_count": len(subs),
-            "subaccount_total_cents": sub_total, "grand_total_cents": grand,
-            "checksum_ok": bool(grand is not None and sub_total == grand),
+            "subaccount_total_cents": sub_total,
+            "grand_total_cents": grand, "grand_total_alt_cents": grand_alt,
+            "checksum_ok": bool(ties),
             "subaccount_delta_cents": (sub_total - grand) if grand is not None else None,
         }
     # Otherwise the 1-page master (daily activity).

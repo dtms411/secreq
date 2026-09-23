@@ -1,3 +1,4 @@
+import './env.js'; // load .env (SUPABASE_SERVICE_KEY, ANTHROPIC_API_KEY) before db.ts reads it
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { ingestPdf } from './ingest.js';
@@ -14,6 +15,7 @@ import type { LeaseColumnMap } from './leases/parse.js';
 import { loadCustody } from './custody/load.js';
 import type { CustodyColumnMap } from './custody/parse.js';
 import { runCustodyDetect, custodyAging } from './custody/run.js';
+import { runBalances, readBalancesJournal } from './custody/balancesRun.js';
 import { runMatching } from './match/run.js';
 import { runLlmMatching } from './llm/run.js';
 import { runDetectors } from './exceptions/run.js';
@@ -40,6 +42,10 @@ const usage = `
   custody-import <file.csv> --map <map.json>   ingest the office custody tracker export
   custody-detect [--dry] [--date YYYY-MM-DD]   run custody lifecycle detectors into triage
   custody-aging [--date YYYY-MM-DD] [--master-balance <cents>]   master-account aging + summary
+  custody-balances [file.pdf...] [--bucket] [--as-of YYYY-MM-DD] [--dry-run]
+                                             read per-tenant subaccount statements through the
+                                             OCR/vision gate and post bank balances (local only)
+  custody-balances-status [--journal <path>]   re-print quarantined/errored balance files
   match                                      propose bank<->ledger matches (human decides)
   llm-match                                  LLM proposes matches for the unmatched (human decides)
   exceptions [--dry]                         run all detectors into the triage queue
@@ -178,6 +184,29 @@ switch (cmd) {
     for (const n of r.notes) console.log(`  note (line ${n.line}): ${n.note}`);
     break;
   }
+  case 'custody-balances': {
+    const withValues = new Set(['--as-of', '--journal']);
+    const files: string[] = [];
+    for (let i = 0; i < args.length; i++) {
+      const a = args[i];
+      if (a.startsWith('--')) { if (withValues.has(a)) i++; continue; }
+      files.push(a);
+    }
+    if (!files.length && !args.includes('--bucket')) {
+      console.error('custody-balances needs file paths and/or --bucket');
+      process.exit(1);
+    }
+    await runBalances({
+      files,
+      bucket: args.includes('--bucket'),
+      asOf: flag('--as-of'),
+      dryRun: args.includes('--dry-run'),
+      journalPath: flag('--journal'),
+    });
+    break;
+  }
+  case 'custody-balances-status': await readBalancesJournal(flag('--journal') ?? '.balances-journal.jsonl'); break;
+
   case 'custody-detect': await runCustodyDetect(!args.includes('--dry'), flag('--date') ?? today()); break;
   case 'custody-aging': {
     const mb = flag('--master-balance');

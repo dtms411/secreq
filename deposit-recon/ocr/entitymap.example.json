@@ -1,0 +1,7 @@
+{
+  "__README__": "Copy this file to entitymap.json (same folder) and fill it in. It maps address-less landlord/agent entity names — the ones that appear on a statement without a street address the matcher can resolve — to the portfolio building name(s) they cover. Keys are matched case-insensitively as substrings of the statement's entity/label; values are building names EXACTLY as they appear in the buildings table. entitymap.json is git-ignored (office-maintained, local only). Delete this __README__ key in your real file.",
+
+  "JPS 050 REALTY LLC": ["<building name>"],
+  "C A S LLC": ["<building name>", "<building name if it covers two>"],
+  "SYDNEY REALTY LLC": ["70-11 108th Street"]
+}

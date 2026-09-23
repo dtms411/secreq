@@ -63,18 +63,26 @@ def verify_per_tenant(pdf_path, bank, vision_rows=None):
         parsed["claude-vision"] = {"subaccounts": vision_rows,
                                    "grand_total_cents": None, "reported_count": None}
 
-    # printed anchors: take the grand total / count the reads agree on
+    # printed anchors: take the grand total(s) / count the reads agree on. Some
+    # per-tenant formats print two grand totals that differ by sub-cent column
+    # rounding (Apple detail: Ledger Balance vs Security Dep.); the accepted sum
+    # must tie to one of them — exactly, to the cent.
     grand, _ = _consensus({r: p.get("grand_total_cents") for r, p in parsed.items()})
+    grand_alt, _ = _consensus({r: p.get("grand_total_alt_cents") for r, p in parsed.items()})
     reported, _ = _consensus({r: p.get("reported_count") for r, p in parsed.items()})
 
-    # union of all account keys seen by any reader
-    keys = {s.get("account") for p in parsed.values() for s in p["subaccounts"] if s.get("account")}
+    # union of all account keys seen by any reader. A read that failed to detect
+    # the per-tenant layout (e.g. a garbled "Building Number" header made a parser
+    # fall back to its master shape) simply carries no subaccounts — it must not
+    # crash the gate, it just does not contribute rows to the consensus.
+    keys = {s.get("account") for p in parsed.values()
+            for s in (p.get("subaccounts") or []) if s.get("account")}
     accepted, flagged = [], []
     for k in sorted(keys):
         seen = {}
         meta = {}
         for r, p in parsed.items():
-            for s in p["subaccounts"]:
+            for s in (p.get("subaccounts") or []):
                 if s.get("account") == k:
                     seen[r] = s.get("balance_cents")
                     meta.setdefault("tenant", s.get("tenant"))
@@ -88,18 +96,25 @@ def verify_per_tenant(pdf_path, bank, vision_rows=None):
                             "reason": "no consensus on balance", "values_seen": seen})
 
     acc_total = sum(a["balance_cents"] for a in accepted)
-    sum_ties = grand is not None and acc_total == grand
-    count_ties = reported is not None and len(accepted) == reported
+    # Tie to either printed grand total (they differ only by column rounding).
+    sum_ties = (grand is not None and acc_total == grand) or \
+               (grand_alt is not None and acc_total == grand_alt)
+    # The count tie is a bonus check only for formats that PRINT a sub-account
+    # count (e.g. Capital One's "N SUB ACCOUNTS"). A format that prints none
+    # (Apple detail) is gated by row consensus + the sum tie alone — not failed
+    # for lacking a number it never carried.
+    count_ok = reported is None or len(accepted) == reported
     consensus_ok = not flagged
-    status = "accepted" if (consensus_ok and sum_ties and count_ties) else "quarantined"
-    if grand is None:
+    status = "accepted" if (consensus_ok and sum_ties and count_ok) else "quarantined"
+    if grand is None and grand_alt is None:
         flagged.append({"reason": "grand total not read by consensus"})
     return {
         "bank": bank, "status": status,
         "reads": list(parsed.keys()),
-        "grand_total_cents": grand, "accepted_total_cents": acc_total,
+        "grand_total_cents": grand, "grand_total_alt_cents": grand_alt,
+        "accepted_total_cents": acc_total,
         "reported_count": reported, "accepted_count": len(accepted),
-        "gates": {"row_consensus": consensus_ok, "sum_ties": sum_ties, "count_ties": count_ties},
+        "gates": {"row_consensus": consensus_ok, "sum_ties": sum_ties, "count_ties": count_ok},
         "accepted": accepted, "flagged": flagged,
     }
 
